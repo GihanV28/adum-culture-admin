@@ -5,15 +5,15 @@ import { z } from 'zod'
 
 const schema = z.object({
   name: z.string().min(1), slug: z.string().min(1),
-  itemCode: z.string().optional(), barcode: z.string().optional(),
+  itemCode: z.string().nullish(), barcode: z.string().nullish(),
   description: z.string().optional(),
   price: z.number().positive(), comparePrice: z.number().optional(),
   costPrice: z.number().default(0),
   status: z.enum(['draft', 'published', 'active', 'inactive', 'out_of_stock']).default('draft'),
   featured: z.boolean().default(false), newArrival: z.boolean().default(false), bestSeller: z.boolean().default(false),
   stock: z.number().default(0), minStock: z.number().default(5),
-  unit: z.string().optional(), categoryId: z.string().optional(), productNotes: z.string().optional(),
-  colors: z.array(z.string()).default([]), modelDetails: z.string().optional(), material: z.string().optional(),
+  unit: z.string().nullish(), categoryId: z.string().nullish(), productNotes: z.string().nullish(),
+  colors: z.array(z.string()).default([]), modelDetails: z.string().nullish(), material: z.string().nullish(),
   careInstructions: z.array(z.string()).default([]), styleGuide: z.array(z.string()).default([]),
   shippingInfo: z.array(z.string()).default([]),
   images: z.array(z.object({ url: z.string(), order: z.number() })).default([]),
