@@ -46,7 +46,7 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
   }, [])
 
   const set = (k: keyof ProductData, v: unknown) => setForm(f => ({ ...f, [k]: v }))
-  const handleNameChange = (v: string) => { set('name', v); if (!id) set('slug', slugify(v)) }
+  const handleNameChange = (v: string) => { set('name', v); set('slug', slugify(v)) }
 
   const uploadImage = async (file: File) => {
     setUploading(true)
