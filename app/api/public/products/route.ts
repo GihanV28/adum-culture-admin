@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
   const products = await db.product.findMany({
     where: {
-      status: 'published',
+      status: { in: ['published', 'active'] },
       ...(bestSeller ? { bestSeller: true } : {}),
       ...(newArrival ? { newArrival: true } : {}),
       ...(featured ? { featured: true } : {}),

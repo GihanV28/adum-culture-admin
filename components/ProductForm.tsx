@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { adminFetch } from '@/lib/api'
@@ -7,12 +7,15 @@ import { slugify } from '@/lib/utils'
 import { Plus, Trash2, Upload, X } from 'lucide-react'
 
 interface Collection { id: string; name: string }
+interface Category { id: string; name: string }
 interface SizeRow { size: string; stock: number }
 interface ImageRow { url: string; order: number }
 interface ProductData {
-  name: string; slug: string; itemCode: string; description: string
-  price: number; comparePrice: number; status: string; featured: boolean
-  newArrival: boolean; bestSeller: boolean; stock: number
+  name: string; slug: string; itemCode: string; barcode: string
+  description: string; price: number; comparePrice: number; costPrice: number
+  status: string; featured: boolean; newArrival: boolean; bestSeller: boolean
+  stock: number; minStock: number; unit: string
+  categoryId: string; productNotes: string
   colors: string; modelDetails: string; material: string
   careInstructions: string; styleGuide: string; shippingInfo: string
   images: ImageRow[]; sizes: SizeRow[]; collectionIds: string[]
@@ -21,9 +24,13 @@ interface ProductData {
 export default function ProductForm({ initial, id, collections }: { initial?: Partial<ProductData>; id?: string; collections: Collection[] }) {
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
+  const [categories, setCategories] = useState<Category[]>([])
   const [form, setForm] = useState<ProductData>({
-    name: '', slug: '', itemCode: '', description: '', price: 0, comparePrice: 0,
-    status: 'draft', featured: false, newArrival: false, bestSeller: false, stock: 0,
+    name: '', slug: '', itemCode: '', barcode: '', description: '',
+    price: 0, comparePrice: 0, costPrice: 0,
+    status: 'draft', featured: false, newArrival: false, bestSeller: false,
+    stock: 0, minStock: 5, unit: '',
+    categoryId: '', productNotes: '',
     colors: '', modelDetails: '', material: '',
     careInstructions: '', styleGuide: '', shippingInfo: '',
     images: [], sizes: [], collectionIds: [],
@@ -33,6 +40,10 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [newSize, setNewSize] = useState({ size: '', stock: 0 })
+
+  useEffect(() => {
+    adminFetch('/api/categories').then(d => setCategories(d.data.categories)).catch(() => {})
+  }, [])
 
   const set = (k: keyof ProductData, v: unknown) => setForm(f => ({ ...f, [k]: v }))
   const handleNameChange = (v: string) => { set('name', v); if (!id) set('slug', slugify(v)) }
@@ -59,7 +70,10 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
         ...form,
         price: Number(form.price),
         comparePrice: Number(form.comparePrice) || undefined,
+        costPrice: Number(form.costPrice) || 0,
         stock: Number(form.stock),
+        minStock: Number(form.minStock) || 5,
+        categoryId: form.categoryId || undefined,
         colors: form.colors ? form.colors.split(',').map(c => c.trim()).filter(Boolean) : [],
         careInstructions: form.careInstructions ? form.careInstructions.split('\n').filter(Boolean) : [],
         styleGuide: form.styleGuide ? form.styleGuide.split('\n').filter(Boolean) : [],
@@ -87,7 +101,7 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-6">
-          {/* Basic */}
+          {/* Basic Info */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="font-semibold text-gray-900">Basic Information</h2>
             <div>
@@ -100,8 +114,18 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
                 <input value={form.slug} onChange={e => set('slug', e.target.value)} className={inputCls} placeholder="classic-white-tee" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Item Code (SKU)</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">SKU / Item Code</label>
                 <input value={form.itemCode} onChange={e => set('itemCode', e.target.value)} className={inputCls} placeholder="AC-001" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Barcode</label>
+                <input value={form.barcode} onChange={e => set('barcode', e.target.value)} className={inputCls} placeholder="e.g. 8941234567890" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
+                <input value={form.unit} onChange={e => set('unit', e.target.value)} className={inputCls} placeholder="piece / kg / set" />
               </div>
             </div>
             <div>
@@ -124,12 +148,12 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
             </div>
           </div>
 
-          {/* Pricing */}
+          {/* Pricing & Inventory */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="font-semibold text-gray-900">Pricing & Stock</h2>
+            <h2 className="font-semibold text-gray-900">Pricing & Inventory</h2>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Price (LKR) *</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Selling Price (LKR) *</label>
                 <input type="number" value={form.price} onChange={e => set('price', e.target.value)} className={inputCls} />
               </div>
               <div>
@@ -137,9 +161,23 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
                 <input type="number" value={form.comparePrice} onChange={e => set('comparePrice', e.target.value)} className={inputCls} placeholder="0.00" />
               </div>
               <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Cost Price (LKR)</label>
+                <input type="number" value={form.costPrice} onChange={e => set('costPrice', e.target.value)} className={inputCls} placeholder="0.00" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Total Stock</label>
                 <input type="number" value={form.stock} onChange={e => set('stock', e.target.value)} className={inputCls} />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Min Stock Alert</label>
+                <input type="number" value={form.minStock} onChange={e => set('minStock', e.target.value)} className={inputCls} placeholder="5" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Internal Notes (ORM only)</label>
+              <textarea value={form.productNotes} onChange={e => set('productNotes', e.target.value)} rows={2} className={inputCls} placeholder="Batch number, supplier notes…" />
             </div>
           </div>
 
@@ -178,7 +216,7 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
             </div>
           </div>
 
-          {/* Extra info */}
+          {/* Additional Info */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="font-semibold text-gray-900">Additional Info</h2>
             <div>
@@ -203,6 +241,9 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
             <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
               <option value="draft">Draft</option>
               <option value="published">Published</option>
+              <option value="active">Active (ORM)</option>
+              <option value="inactive">Inactive</option>
+              <option value="out_of_stock">Out of Stock</option>
             </select>
             <div className="space-y-2">
               {[{ key: 'featured', label: 'Featured' }, { key: 'newArrival', label: 'New Arrival' }, { key: 'bestSeller', label: 'Best Seller' }].map(({ key, label }) => (
@@ -212,6 +253,15 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+            <h2 className="font-semibold text-gray-900">Category</h2>
+            <select value={form.categoryId} onChange={e => set('categoryId', e.target.value)} className={inputCls}>
+              <option value="">No category</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <p className="text-xs text-gray-400">Used for ORM inventory grouping</p>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">

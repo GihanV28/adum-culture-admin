@@ -1,12 +1,13 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, FolderOpen, ShoppingCart, Users, Tag, Mail, FileText, LogOut, Calculator, Image } from 'lucide-react'
+import { LayoutDashboard, Package, FolderOpen, ShoppingCart, Users, Tag, Mail, FileText, LogOut, Calculator, Image, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const nav = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/products', label: 'Products', icon: Package },
+  { href: '/categories', label: 'Categories', icon: Layers },
   { href: '/collections', label: 'Collections', icon: FolderOpen },
   { href: '/hero-slides', label: 'Hero Slides', icon: Image },
   { href: '/orders', label: 'Orders', icon: ShoppingCart },

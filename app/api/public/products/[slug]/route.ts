@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
     },
   })
 
-  if (!p || p.status !== 'published') {
+  if (!p || !['published', 'active'].includes(p.status)) {
     return NextResponse.json({ success: false, message: 'Not found.' }, { status: 404, headers: CORS })
   }
 
