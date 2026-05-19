@@ -18,6 +18,7 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
       images: { orderBy: { order: 'asc' } },
       sizes: true,
       collections: { include: { collection: true } },
+      sizeGuide: true,
     },
   })
 
@@ -46,6 +47,13 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
         category: p.collections[0]?.collection.slug ?? '',
         categoryName: p.collections[0]?.collection.name ?? '',
         colorVariants: (p.colorVariants as { colorHex: string; colorName: string; sizes: { size: string; stock: number }[] }[]) ?? [],
+        sizeGuideData: p.sizeGuide ? {
+          name: p.sizeGuide.name,
+          note: p.sizeGuide.note,
+          unit: p.sizeGuide.unit,
+          columns: p.sizeGuide.columns,
+          rows: p.sizeGuide.rows,
+        } : null,
         modelDetails: p.modelDetails,
         material: p.material,
         careInstructions: (p.careInstructions as string[]) ?? [],
