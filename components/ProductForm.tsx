@@ -278,13 +278,27 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
                   <input value={variant.colorName}
                     onChange={e => updateVariant(vi, { colorName: e.target.value })}
                     className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="Color name (e.g. Black)" />
+                  {vi === 0 && form.sizeGuideId && (() => {
+                    const guide = sizeGuides.find(g => g.id === form.sizeGuideId)
+                    if (!guide) return null
+                    const missing = (guide.rows as { size: string }[])
+                      .map(r => r.size)
+                      .filter(s => !variant.sizes.find(vs => vs.size === s))
+                    if (missing.length === 0) return null
+                    return (
+                      <button onClick={() => updateVariant(0, { sizes: [...variant.sizes, ...missing.map(s => ({ size: s, stock: 0 }))] })}
+                        className="text-xs text-blue-600 hover:underline whitespace-nowrap">
+                        ↓ Import Sizes
+                      </button>
+                    )
+                  })()}
                   {vi > 0 && (
                     <button onClick={() => inheritSizes(vi)}
                       className="text-xs text-blue-600 hover:underline whitespace-nowrap">
-                      ↑ Inherit sizes
+                      ↑ Add Above Sizes
                     </button>
                   )}
-                  <button onClick={() => removeVariant(vi)} className="text-gray-400 hover:text-red-500 ml-auto">
+                  <button onClick={() => removeVariant(vi)} className="text-gray-400 hover:text-red-500">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
