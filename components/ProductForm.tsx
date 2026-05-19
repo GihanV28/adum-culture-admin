@@ -335,10 +335,7 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
             {form.sizeGuideId && (() => {
               const guide = sizeGuides.find(g => g.id === form.sizeGuideId)
               return guide ? (
-                <a href={guide.fileUrl} target="_blank" rel="noopener noreferrer"
-                  className="inline-block text-xs text-blue-600 hover:underline">
-                  View current guide ↗
-                </a>
+                <p className="text-xs text-gray-500">{guide.unit} · {guide.columns.join(', ')} · {guide.rows.length} sizes</p>
               ) : null
             })()}
             {sizeGuides.length === 0 && <p className="text-xs text-gray-400">No size guides yet. <a href="/size-guides" className="text-blue-600 hover:underline">Add one</a></p>}
