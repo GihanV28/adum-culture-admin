@@ -1,25 +1,41 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
+import Image from 'next/image'
 import { adminFetch } from '@/lib/api'
-import { Save } from 'lucide-react'
+import { Save, Upload, X } from 'lucide-react'
 
-interface ContentBlock { id: string; key: string; title?: string; body?: string; imageUrl?: string }
+interface ContentBlock {
+  id: string; key: string; title?: string; body?: string; imageUrl?: string
+  data?: Record<string, string>
+}
+
+// Contact info stored as JSON in the `data` field
+const DEFAULT_CONTACT: Record<string, string> = {
+  description: '', address: '', email: '', phone: '',
+  whatsappUrl: '', instagramUrl: '', instagramLabel: 'Instagram',
+  facebookUrl: '', facebookLabel: 'Facebook',
+}
 
 const CONTENT_KEYS = [
-  { key: 'homepage_hero', label: 'Homepage Hero', fields: ['title', 'body', 'imageUrl'] },
-  { key: 'homepage_banner', label: 'Homepage Banner', fields: ['title', 'body', 'imageUrl'] },
-  { key: 'about_hero', label: 'About Page Hero', fields: ['title', 'body', 'imageUrl'] },
-  { key: 'about_story', label: 'Our Story', fields: ['title', 'body'] },
-  { key: 'shipping_info', label: 'Shipping Information', fields: ['body'] },
-  { key: 'returns_policy', label: 'Returns Policy', fields: ['body'] },
+  { key: 'contact_info',         label: 'Contact Us',            type: 'contact',  description: 'Get In Touch section on the Contact page' },
+  { key: 'about_us',             label: 'About Us',              type: 'about',    description: 'Description and image for the About page' },
+  { key: 'about_story',          label: 'Our Story',             type: 'story',    description: 'Short version shown on the homepage' },
+  { key: 'shipping_info',        label: 'Shipping Policy',       type: 'policy',   description: 'Shipping policy page content' },
+  { key: 'returns_policy',       label: 'Exchange & Refund',     type: 'policy',   description: 'Exchange & refund policy content' },
+  { key: 'international_shipping', label: 'International Shipping', type: 'policy', description: 'International shipping policy content' },
+  { key: 'privacy_policy',       label: 'Privacy Policy',        type: 'policy',   description: 'Privacy policy content' },
+  { key: 'terms_of_service',     label: 'Terms of Service',      type: 'policy',   description: 'Terms of service content' },
 ]
 
 export default function ContentPage() {
   const [blocks, setBlocks] = useState<Record<string, ContentBlock>>({})
   const [editing, setEditing] = useState<string | null>(null)
   const [form, setForm] = useState<Partial<ContentBlock>>({})
+  const [contactData, setContactData] = useState<Record<string, string>>({ ...DEFAULT_CONTACT })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     adminFetch('/api/content').then(d => {
@@ -29,17 +45,35 @@ export default function ContentPage() {
     }).catch(console.error)
   }, [])
 
-  const startEdit = (key: string) => {
+  const openEdit = (key: string) => {
+    if (editing === key) { setEditing(null); return }
+    const block = blocks[key]
     setEditing(key)
-    setForm(blocks[key] ?? { key, title: '', body: '', imageUrl: '' })
+    setForm(block ?? { key, title: '', body: '', imageUrl: '' })
+    if (key === 'contact_info') {
+      setContactData({ ...DEFAULT_CONTACT, ...(block?.data ?? {}) })
+    }
+  }
+
+  const uploadImage = async (file: File) => {
+    setUploading(true)
+    const fd = new FormData(); fd.append('file', file)
+    const token = localStorage.getItem('admin_token')
+    const res = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd })
+    const data = await res.json()
+    if (data.success) setForm(f => ({ ...f, imageUrl: data.data.url }))
+    setUploading(false)
   }
 
   const save = async () => {
     if (!editing) return
     setSaving(true)
-    const d = await adminFetch('/api/content', { method: 'PUT', body: JSON.stringify({ ...form, key: editing }) })
+    const payload = editing === 'contact_info'
+      ? { key: editing, data: contactData }
+      : { ...form, key: editing }
+    const d = await adminFetch('/api/content', { method: 'PUT', body: JSON.stringify(payload) })
     setBlocks(b => ({ ...b, [editing]: d.data.content }))
-    setSaved(editing); setTimeout(() => setSaved(''), 2000)
+    setSaved(editing); setTimeout(() => setSaved(''), 2500)
     setSaving(false)
   }
 
@@ -48,41 +82,160 @@ export default function ContentPage() {
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-2">Page Content</h1>
-      <p className="text-sm text-gray-500 mb-8">Edit text and images for your website pages.</p>
+      <p className="text-sm text-gray-500 mb-8">Edit text and content for your website pages.</p>
 
-      <div className="space-y-4">
-        {CONTENT_KEYS.map(({ key, label, fields }) => (
+      <div className="space-y-3">
+        {CONTENT_KEYS.map(({ key, label, type, description }) => (
           <div key={key} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <button onClick={() => setEditing(editing === key ? null : key)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center gap-3">
+            {/* Header row */}
+            <button onClick={() => openEdit(key)}
+              className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors text-left">
+              <div>
                 <span className="font-medium text-gray-900">{label}</span>
-                {blocks[key]?.title && <span className="text-xs text-gray-400 truncate max-w-48">{blocks[key].title}</span>}
+                <span className="ml-3 text-xs text-gray-400">{description}</span>
               </div>
-              <span className="text-xs text-gray-400">{editing === key ? '▲ Close' : '▼ Edit'}</span>
+              <span className="text-xs text-gray-400 shrink-0 ml-4">{editing === key ? '▲ Close' : '▼ Edit'}</span>
             </button>
 
             {editing === key && (
-              <div className="px-6 pb-6 border-t border-gray-100 pt-4 space-y-3">
-                {fields.includes('title') && (
+              <div className="px-6 pb-6 border-t border-gray-100 pt-5 space-y-4">
+
+                {/* ── CONTACT type ── */}
+                {type === 'contact' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                      <textarea value={contactData.description} rows={2}
+                        onChange={e => setContactData(d => ({ ...d, description: e.target.value }))}
+                        className={inputCls} placeholder="Have a question? Reach out to our team." />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+                        <textarea value={contactData.address} rows={2}
+                          onChange={e => setContactData(d => ({ ...d, address: e.target.value }))}
+                          className={inputCls} placeholder="Adum Culture,&#10;Kiribathgoda, Sri Lanka 11600" />
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                          <input value={contactData.email}
+                            onChange={e => setContactData(d => ({ ...d, email: e.target.value }))}
+                            className={inputCls} placeholder="info@adumculture.com" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Phone / WhatsApp Number</label>
+                          <input value={contactData.phone}
+                            onChange={e => setContactData(d => ({ ...d, phone: e.target.value }))}
+                            className={inputCls} placeholder="+94 76 061 3070" />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp URL</label>
+                      <input value={contactData.whatsappUrl}
+                        onChange={e => setContactData(d => ({ ...d, whatsappUrl: e.target.value }))}
+                        className={inputCls} placeholder="https://wa.me/94760613070" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Instagram URL</label>
+                        <input value={contactData.instagramUrl}
+                          onChange={e => setContactData(d => ({ ...d, instagramUrl: e.target.value }))}
+                          className={inputCls} placeholder="https://instagram.com/adum_culture" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Instagram Label</label>
+                        <input value={contactData.instagramLabel}
+                          onChange={e => setContactData(d => ({ ...d, instagramLabel: e.target.value }))}
+                          className={inputCls} placeholder="Instagram" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Facebook URL</label>
+                        <input value={contactData.facebookUrl}
+                          onChange={e => setContactData(d => ({ ...d, facebookUrl: e.target.value }))}
+                          className={inputCls} placeholder="https://facebook.com/adumculture" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Facebook Label</label>
+                        <input value={contactData.facebookLabel}
+                          onChange={e => setContactData(d => ({ ...d, facebookLabel: e.target.value }))}
+                          className={inputCls} placeholder="Facebook" />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ── ABOUT type ── */}
+                {type === 'about' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                      <textarea value={form.body ?? ''} rows={5}
+                        onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+                        className={inputCls} placeholder="About Us page description…" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-2">Page Image</label>
+                      {form.imageUrl ? (
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-gray-200">
+                            <Image src={form.imageUrl} alt="" fill className="object-cover" />
+                          </div>
+                          <button onClick={() => setForm(f => ({ ...f, imageUrl: '' }))}
+                            className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-700">
+                            <X className="w-4 h-4" /> Remove image
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                          className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-gray-400 disabled:opacity-50">
+                          {uploading
+                            ? <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                            : <><Upload className="w-4 h-4" /> Upload image</>}
+                        </button>
+                      )}
+                      <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                        onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0])} />
+                    </div>
+                  </>
+                )}
+
+                {/* ── STORY type ── */}
+                {type === 'story' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Section Title</label>
+                      <input value={form.title ?? ''} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                        className={inputCls} placeholder="Our Story" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                      <textarea value={form.body ?? ''} rows={5}
+                        onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+                        className={inputCls} placeholder="Short description shown on the homepage…" />
+                    </div>
+                  </>
+                )}
+
+                {/* ── POLICY type ── */}
+                {type === 'policy' && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
-                    <input value={form.title ?? ''} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className={inputCls} placeholder="Section title" />
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Content <span className="text-gray-400 font-normal">(use blank lines to separate paragraphs)</span>
+                    </label>
+                    <textarea value={form.body ?? ''} rows={12}
+                      onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+                      className={inputCls} placeholder="Enter policy content…" />
                   </div>
                 )}
-                {fields.includes('body') && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Body Text</label>
-                    <textarea value={form.body ?? ''} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} rows={5} className={inputCls} placeholder="Content text…" />
-                  </div>
-                )}
-                {fields.includes('imageUrl') && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Image URL</label>
-                    <input value={form.imageUrl ?? ''} onChange={e => setForm(f => ({ ...f, imageUrl: e.target.value }))} className={inputCls} placeholder="https://…" />
-                  </div>
-                )}
-                <button onClick={save} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50">
-                  <Save className="w-4 h-4" /> {saving ? 'Saving…' : saved === key ? '✓ Saved!' : 'Save'}
+
+                <button onClick={save} disabled={saving || uploading}
+                  className="flex items-center gap-2 px-5 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50">
+                  <Save className="w-4 h-4" />
+                  {saving ? 'Saving…' : saved === key ? '✓ Saved!' : 'Save'}
                 </button>
               </div>
             )}
