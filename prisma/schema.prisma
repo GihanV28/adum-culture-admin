@@ -76,8 +76,10 @@ model ProductVariant {
 model SizeGuide {
   id        String    @id @default(cuid())
   name      String
-  fileUrl   String
-  fileType  String    // 'image' | 'pdf'
+  note      String?                          // optional note shown above the chart
+  unit      String    @default("INCH")       // 'CM' | 'INCH' | 'BOTH'
+  columns   Json      @default("[]")         // ["Chest", "Waist", "Hips"]
+  rows      Json      @default("[]")         // [{ size: "XS", values: ["33", "24.5", "36"] }]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   products  Product[]

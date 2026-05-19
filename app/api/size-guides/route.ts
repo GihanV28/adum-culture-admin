@@ -5,8 +5,10 @@ import { z } from 'zod'
 
 const schema = z.object({
   name: z.string().min(1),
-  fileUrl: z.string().min(1),
-  fileType: z.enum(['image', 'pdf']),
+  note: z.string().optional(),
+  unit: z.enum(['CM', 'INCH', 'BOTH']).default('INCH'),
+  columns: z.array(z.string()).default([]),
+  rows: z.array(z.object({ size: z.string(), values: z.array(z.string()) })).default([]),
 })
 
 export async function GET(req: NextRequest) {

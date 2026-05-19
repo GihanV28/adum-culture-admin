@@ -8,7 +8,7 @@ import { Plus, Trash2, Upload, X } from 'lucide-react'
 
 interface Collection { id: string; name: string }
 interface Category { id: string; name: string }
-interface SizeGuide { id: string; name: string; fileUrl: string; fileType: string }
+interface SizeGuide { id: string; name: string; unit: string; columns: string[]; rows: { size: string; values: string[] }[] }
 interface SizeRow { size: string; stock: number }
 interface ImageRow { url: string; order: number }
 interface ProductData {
@@ -205,18 +205,76 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
 
           {/* Sizes */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="font-semibold text-gray-900">Sizes & Stock</h2>
-            {form.sizes.map((s, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <span className="w-16 px-2 py-1 bg-gray-100 rounded text-sm font-medium text-center">{s.size}</span>
-                <span className="text-sm text-gray-500">{s.stock} in stock</span>
-                <button onClick={() => removeSize(i)} className="ml-auto text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900">Sizes & Stock</h2>
+              {form.sizeGuideId && (() => {
+                const guide = sizeGuides.find(g => g.id === form.sizeGuideId)
+                if (!guide) return null
+                const guideSizes = (guide.rows as { size: string }[]).map(r => r.size)
+                const missing = guideSizes.filter(s => !form.sizes.find(fs => fs.size === s))
+                if (missing.length === 0) return null
+                return (
+                  <button onClick={() => set('sizes', [
+                    ...form.sizes,
+                    ...missing.map(s => ({ size: s, stock: 0 }))
+                  ])} className="text-xs text-blue-600 hover:underline">
+                    + Import {missing.length} size{missing.length !== 1 ? 's' : ''} from guide
+                  </button>
+                )
+              })()}
+            </div>
+
+            {/* Size rows — all editable inline */}
+            {form.sizes.length > 0 && (
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Size</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Stock Qty</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
+                      <th className="w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {form.sizes.map((s, i) => (
+                      <tr key={i} className="hover:bg-gray-50/50">
+                        <td className="px-4 py-2">
+                          <input value={s.size}
+                            onChange={e => set('sizes', form.sizes.map((r, j) => j === i ? { ...r, size: e.target.value } : r))}
+                            className="w-20 px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-black font-medium" />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input type="number" min={0} value={s.stock}
+                            onChange={e => set('sizes', form.sizes.map((r, j) => j === i ? { ...r, stock: +e.target.value } : r))}
+                            className="w-24 px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-black" />
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                            {s.stock > 0 ? 'In Stock' : 'Out of Stock'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">
+                          <button onClick={() => removeSize(i)} className="text-gray-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
-            <div className="flex gap-2">
-              <input placeholder="Size (e.g. M)" value={newSize.size} onChange={e => setNewSize(n => ({ ...n, size: e.target.value }))} className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black" />
-              <input type="number" placeholder="Stock" value={newSize.stock} onChange={e => setNewSize(n => ({ ...n, stock: +e.target.value }))} className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black" />
-              <button onClick={addSize} className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm"><Plus className="w-4 h-4" /> Add</button>
+            )}
+
+            {/* Add size row */}
+            <div className="flex gap-2 items-center">
+              <input placeholder="Size (e.g. M)" value={newSize.size} onChange={e => setNewSize(n => ({ ...n, size: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && addSize()}
+                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+              <input type="number" placeholder="Stock" value={newSize.stock} onChange={e => setNewSize(n => ({ ...n, stock: +e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && addSize()}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+              <button onClick={addSize} className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm">
+                <Plus className="w-4 h-4" /> Add
+              </button>
             </div>
           </div>
 
