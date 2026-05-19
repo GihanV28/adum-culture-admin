@@ -9,7 +9,7 @@ const nav = [
   { href: '/products', label: 'Products', icon: Package },
   { href: '/categories', label: 'Categories', icon: Layers },
   { href: '/collections', label: 'Collections', icon: FolderOpen },
-  { href: '/size-guides', label: 'Size Guide', icon: Ruler },
+  { href: '/size-guides', label: 'Size & Colors', icon: Ruler },
   { href: '/hero-slides', label: 'Hero Slides', icon: Image },
   { href: '/orders', label: 'Orders', icon: ShoppingCart },
   { href: '/users', label: 'Customers', icon: Users },

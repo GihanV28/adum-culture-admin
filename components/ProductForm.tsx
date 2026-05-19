@@ -11,6 +11,7 @@ interface Category { id: string; name: string }
 interface SizeGuide { id: string; name: string; unit: string; columns: string[]; rows: { size: string; values: string[] }[] }
 interface SizeRow { size: string; stock: number }
 interface ImageRow { url: string; order: number }
+interface ColorVariant { colorHex: string; colorName: string; sizes: SizeRow[] }
 interface ProductData {
   name: string; slug: string; itemCode: string; barcode: string
   description: string; price: number; comparePrice: number; costPrice: number
@@ -20,6 +21,7 @@ interface ProductData {
   colors: string; modelDetails: string; material: string
   careInstructions: string; styleGuide: string; shippingInfo: string
   images: ImageRow[]; sizes: SizeRow[]; collectionIds: string[]
+  colorVariants?: ColorVariant[]
 }
 
 export default function ProductForm({ initial, id, collections }: { initial?: Partial<ProductData>; id?: string; collections: Collection[] }) {
@@ -38,10 +40,22 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
     images: [], sizes: [], collectionIds: [],
     ...initial,
   })
+  const [colorVariants, setColorVariants] = useState<ColorVariant[]>(
+    (initial as { colorVariants?: ColorVariant[] })?.colorVariants ?? []
+  )
+  const [newVariantSizes, setNewVariantSizes] = useState<SizeRow[]>([])
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
-  const [newSize, setNewSize] = useState({ size: '', stock: 0 })
+
+  // keep newVariantSizes length in sync with colorVariants
+  useEffect(() => {
+    setNewVariantSizes(prev => {
+      const next = [...prev]
+      while (next.length < colorVariants.length) next.push({ size: '', stock: 0 })
+      return next.slice(0, colorVariants.length)
+    })
+  }, [colorVariants.length])
 
   useEffect(() => {
     adminFetch('/api/categories').then(d => setCategories(d.data.categories)).catch(() => {})
@@ -62,13 +76,41 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
   }
 
   const removeImage = (idx: number) => set('images', form.images.filter((_, i) => i !== idx).map((img, i) => ({ ...img, order: i })))
-  const addSize = () => { if (!newSize.size) return; set('sizes', [...form.sizes, { ...newSize }]); setNewSize({ size: '', stock: 0 }) }
-  const removeSize = (idx: number) => set('sizes', form.sizes.filter((_, i) => i !== idx))
   const toggleCollection = (cid: string) => set('collectionIds', form.collectionIds.includes(cid) ? form.collectionIds.filter(c => c !== cid) : [...form.collectionIds, cid])
+
+  // ── Color variant helpers ──────────────────────────────────────────────────
+  const addVariant = () => setColorVariants(cv => [...cv, { colorHex: '#000000', colorName: '', sizes: [] }])
+  const removeVariant = (vi: number) => setColorVariants(cv => cv.filter((_, i) => i !== vi))
+  const updateVariant = (vi: number, patch: Partial<ColorVariant>) =>
+    setColorVariants(cv => cv.map((v, i) => i === vi ? { ...v, ...patch } : v))
+  const inheritSizes = (vi: number) => {
+    if (vi === 0) return
+    const prev = colorVariants[vi - 1]
+    updateVariant(vi, { sizes: prev.sizes.map(s => ({ ...s })) })
+  }
+  const addSizeToVariant = (vi: number) => {
+    const ns = newVariantSizes[vi]
+    if (!ns?.size) return
+    updateVariant(vi, { sizes: [...colorVariants[vi].sizes, { size: ns.size, stock: ns.stock }] })
+    setNewVariantSizes(prev => prev.map((s, i) => i === vi ? { size: '', stock: 0 } : s))
+  }
+  const removeSizeFromVariant = (vi: number, si: number) =>
+    updateVariant(vi, { sizes: colorVariants[vi].sizes.filter((_, i) => i !== si) })
+  const updateVariantSize = (vi: number, si: number, patch: Partial<SizeRow>) =>
+    updateVariant(vi, { sizes: colorVariants[vi].sizes.map((s, i) => i === si ? { ...s, ...patch } : s) })
 
   const save = async () => {
     setSaving(true); setError('')
     try {
+      // Aggregate sizes from all color variants for backward compat
+      const aggregatedSizes: Record<string, number> = {}
+      colorVariants.forEach(cv => cv.sizes.forEach(s => {
+        aggregatedSizes[s.size] = (aggregatedSizes[s.size] ?? 0) + s.stock
+      }))
+      const sizes = colorVariants.length > 0
+        ? Object.entries(aggregatedSizes).map(([size, stock]) => ({ size, stock }))
+        : form.sizes
+
       const payload = {
         ...form,
         price: Number(form.price),
@@ -78,10 +120,14 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
         minStock: Number(form.minStock) || 5,
         categoryId: form.categoryId || undefined,
         sizeGuideId: form.sizeGuideId || undefined,
-        colors: form.colors ? form.colors.split(',').map(c => c.trim()).filter(Boolean) : [],
+        colors: colorVariants.length > 0
+          ? colorVariants.map(cv => cv.colorName || cv.colorHex).filter(Boolean)
+          : form.colors ? form.colors.split(',').map(c => c.trim()).filter(Boolean) : [],
         careInstructions: form.careInstructions ? form.careInstructions.split('\n').filter(Boolean) : [],
         styleGuide: form.styleGuide ? form.styleGuide.split('\n').filter(Boolean) : [],
         shippingInfo: form.shippingInfo ? form.shippingInfo.split('\n').filter(Boolean) : [],
+        sizes,
+        colorVariants,
       }
       if (id) await adminFetch(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
       else await adminFetch('/api/products', { method: 'POST', body: JSON.stringify(payload) })
@@ -203,79 +249,107 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0])} />
           </div>
 
-          {/* Sizes */}
+          {/* Sizes, Colors & Stock */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900">Sizes & Stock</h2>
-              {form.sizeGuideId && (() => {
-                const guide = sizeGuides.find(g => g.id === form.sizeGuideId)
-                if (!guide) return null
-                const guideSizes = (guide.rows as { size: string }[]).map(r => r.size)
-                const missing = guideSizes.filter(s => !form.sizes.find(fs => fs.size === s))
-                if (missing.length === 0) return null
-                return (
-                  <button onClick={() => set('sizes', [
-                    ...form.sizes,
-                    ...missing.map(s => ({ size: s, stock: 0 }))
-                  ])} className="text-xs text-blue-600 hover:underline">
-                    + Import {missing.length} size{missing.length !== 1 ? 's' : ''} from guide
-                  </button>
-                )
-              })()}
+              <h2 className="font-semibold text-gray-900">Sizes, Colors & Stock</h2>
+              <button onClick={addVariant}
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800">
+                <Plus className="w-3 h-3" /> Add Color
+              </button>
             </div>
 
-            {/* Size rows — all editable inline */}
-            {form.sizes.length > 0 && (
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Size</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Stock Qty</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
-                      <th className="w-10"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {form.sizes.map((s, i) => (
-                      <tr key={i} className="hover:bg-gray-50/50">
-                        <td className="px-4 py-2">
-                          <input value={s.size}
-                            onChange={e => set('sizes', form.sizes.map((r, j) => j === i ? { ...r, size: e.target.value } : r))}
-                            className="w-20 px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-black font-medium" />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input type="number" min={0} value={s.stock}
-                            onChange={e => set('sizes', form.sizes.map((r, j) => j === i ? { ...r, stock: +e.target.value } : r))}
-                            className="w-24 px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-black" />
-                        </td>
-                        <td className="px-4 py-2">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                            {s.stock > 0 ? 'In Stock' : 'Out of Stock'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2">
-                          <button onClick={() => removeSize(i)} className="text-gray-300 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {colorVariants.length === 0 && (
+              <div className="text-center py-8 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
+                No colors added yet. Click <strong>Add Color</strong> to define size availability per color.
               </div>
             )}
 
-            {/* Add size row */}
-            <div className="flex gap-2 items-center">
-              <input placeholder="Size (e.g. M)" value={newSize.size} onChange={e => setNewSize(n => ({ ...n, size: e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && addSize()}
-                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black" />
-              <input type="number" placeholder="Stock" value={newSize.stock} onChange={e => setNewSize(n => ({ ...n, stock: +e.target.value }))}
-                onKeyDown={e => e.key === 'Enter' && addSize()}
-                className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black" />
-              <button onClick={addSize} className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm">
-                <Plus className="w-4 h-4" /> Add
-              </button>
-            </div>
+            {colorVariants.map((variant, vi) => (
+              <div key={vi} className="border border-gray-200 rounded-xl overflow-hidden">
+                {/* Color header */}
+                <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
+                  <input type="color" value={variant.colorHex}
+                    onChange={e => updateVariant(vi, { colorHex: e.target.value })}
+                    className="w-8 h-8 rounded cursor-pointer border border-gray-200 p-0.5 bg-white" />
+                  <input value={variant.colorHex}
+                    onChange={e => updateVariant(vi, { colorHex: e.target.value })}
+                    className="w-24 px-2 py-1 border border-gray-200 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-black" placeholder="#000000" />
+                  <input value={variant.colorName}
+                    onChange={e => updateVariant(vi, { colorName: e.target.value })}
+                    className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-black" placeholder="Color name (e.g. Black)" />
+                  {vi > 0 && (
+                    <button onClick={() => inheritSizes(vi)}
+                      className="text-xs text-blue-600 hover:underline whitespace-nowrap">
+                      ↑ Inherit sizes
+                    </button>
+                  )}
+                  <button onClick={() => removeVariant(vi)} className="text-gray-400 hover:text-red-500 ml-auto">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Sizes table for this color */}
+                <div className="p-4 space-y-3">
+                  {variant.sizes.length > 0 && (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          <th className="pb-2 text-left text-xs font-medium text-gray-500 w-28">Size</th>
+                          <th className="pb-2 text-left text-xs font-medium text-gray-500 w-28">Stock Qty</th>
+                          <th className="pb-2 text-left text-xs font-medium text-gray-500">Status</th>
+                          <th className="w-8"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {variant.sizes.map((s, si) => (
+                          <tr key={si}>
+                            <td className="py-1.5 pr-2">
+                              <input value={s.size}
+                                onChange={e => updateVariantSize(vi, si, { size: e.target.value })}
+                                className="w-24 px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-black font-medium" />
+                            </td>
+                            <td className="py-1.5 pr-2">
+                              <input type="number" min={0} value={s.stock}
+                                onChange={e => updateVariantSize(vi, si, { stock: +e.target.value })}
+                                className="w-24 px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-black" />
+                            </td>
+                            <td className="py-1.5">
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                                {s.stock > 0 ? 'In Stock' : 'Out of Stock'}
+                              </span>
+                            </td>
+                            <td className="py-1.5">
+                              <button onClick={() => removeSizeFromVariant(vi, si)} className="text-gray-300 hover:text-red-500">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+
+                  {/* Add size to this variant */}
+                  <div className="flex gap-2 items-center pt-1">
+                    <input placeholder="Size (e.g. M)"
+                      value={newVariantSizes[vi]?.size ?? ''}
+                      onChange={e => setNewVariantSizes(prev => prev.map((s, i) => i === vi ? { ...s, size: e.target.value } : s))}
+                      onKeyDown={e => e.key === 'Enter' && addSizeToVariant(vi)}
+                      className="w-28 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-black" />
+                    <input type="number" placeholder="Stock"
+                      value={newVariantSizes[vi]?.stock ?? 0}
+                      onChange={e => setNewVariantSizes(prev => prev.map((s, i) => i === vi ? { ...s, stock: +e.target.value } : s))}
+                      onKeyDown={e => e.key === 'Enter' && addSizeToVariant(vi)}
+                      className="w-20 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-black" />
+                    <button onClick={() => addSizeToVariant(vi)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm">
+                      <Plus className="w-3.5 h-3.5" /> Add size
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Additional Info */}

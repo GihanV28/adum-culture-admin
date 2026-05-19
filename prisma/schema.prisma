@@ -131,6 +131,7 @@ model Product {
   category         Category?           @relation(fields: [categoryId], references: [id])
   sizeGuideId      String?
   sizeGuide        SizeGuide?          @relation(fields: [sizeGuideId], references: [id])
+  colorVariants    Json?               // [{ colorHex, colorName, sizes: [{size, stock}] }]
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   images           ProductImage[]

@@ -19,6 +19,11 @@ const schema = z.object({
   images: z.array(z.object({ url: z.string(), order: z.number() })).default([]),
   sizes: z.array(z.object({ size: z.string(), stock: z.number() })).default([]),
   collectionIds: z.array(z.string()).default([]),
+  colorVariants: z.array(z.object({
+    colorHex: z.string(),
+    colorName: z.string(),
+    sizes: z.array(z.object({ size: z.string(), stock: z.number() })),
+  })).optional(),
 })
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -55,6 +60,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         unit: body.unit || null, categoryId: body.categoryId || null, sizeGuideId: body.sizeGuideId || null, productNotes: body.productNotes || null,
         colors: body.colors, modelDetails: body.modelDetails, material: body.material,
         careInstructions: body.careInstructions, styleGuide: body.styleGuide, shippingInfo: body.shippingInfo,
+        colorVariants: body.colorVariants ?? [],
         images: { create: body.images },
         sizes: { create: body.sizes },
         collections: { create: body.collectionIds.map(id => ({ collectionId: id })) },

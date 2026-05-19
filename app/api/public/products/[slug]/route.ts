@@ -45,6 +45,7 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
         stock: p.stock,
         category: p.collections[0]?.collection.slug ?? '',
         categoryName: p.collections[0]?.collection.name ?? '',
+        colorVariants: (p.colorVariants as { colorHex: string; colorName: string; sizes: { size: string; stock: number }[] }[]) ?? [],
         modelDetails: p.modelDetails,
         material: p.material,
         careInstructions: (p.careInstructions as string[]) ?? [],
