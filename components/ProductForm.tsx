@@ -8,6 +8,7 @@ import { Plus, Trash2, Upload, X } from 'lucide-react'
 
 interface Collection { id: string; name: string }
 interface Category { id: string; name: string }
+interface SizeGuide { id: string; name: string; fileUrl: string; fileType: string }
 interface SizeRow { size: string; stock: number }
 interface ImageRow { url: string; order: number }
 interface ProductData {
@@ -15,7 +16,7 @@ interface ProductData {
   description: string; price: number; comparePrice: number; costPrice: number
   status: string; featured: boolean; newArrival: boolean; bestSeller: boolean
   stock: number; minStock: number; unit: string
-  categoryId: string; productNotes: string
+  categoryId: string; sizeGuideId: string; productNotes: string
   colors: string; modelDetails: string; material: string
   careInstructions: string; styleGuide: string; shippingInfo: string
   images: ImageRow[]; sizes: SizeRow[]; collectionIds: string[]
@@ -25,12 +26,13 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
   const router = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
   const [categories, setCategories] = useState<Category[]>([])
+  const [sizeGuides, setSizeGuides] = useState<SizeGuide[]>([])
   const [form, setForm] = useState<ProductData>({
     name: '', slug: '', itemCode: '', barcode: '', description: '',
     price: 0, comparePrice: 0, costPrice: 0,
     status: 'draft', featured: false, newArrival: false, bestSeller: false,
     stock: 0, minStock: 5, unit: '',
-    categoryId: '', productNotes: '',
+    categoryId: '', sizeGuideId: '', productNotes: '',
     colors: '', modelDetails: '', material: '',
     careInstructions: '', styleGuide: '', shippingInfo: '',
     images: [], sizes: [], collectionIds: [],
@@ -43,6 +45,7 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
 
   useEffect(() => {
     adminFetch('/api/categories').then(d => setCategories(d.data.categories)).catch(() => {})
+    adminFetch('/api/size-guides').then(d => setSizeGuides(d.data.guides)).catch(() => {})
   }, [])
 
   const set = (k: keyof ProductData, v: unknown) => setForm(f => ({ ...f, [k]: v }))
@@ -74,6 +77,7 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
         stock: Number(form.stock),
         minStock: Number(form.minStock) || 5,
         categoryId: form.categoryId || undefined,
+        sizeGuideId: form.sizeGuideId || undefined,
         colors: form.colors ? form.colors.split(',').map(c => c.trim()).filter(Boolean) : [],
         careInstructions: form.careInstructions ? form.careInstructions.split('\n').filter(Boolean) : [],
         styleGuide: form.styleGuide ? form.styleGuide.split('\n').filter(Boolean) : [],
@@ -262,6 +266,24 @@ export default function ProductForm({ initial, id, collections }: { initial?: Pa
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <p className="text-xs text-gray-400">Used for ORM inventory grouping</p>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+            <h2 className="font-semibold text-gray-900">Size Guide</h2>
+            <select value={form.sizeGuideId} onChange={e => set('sizeGuideId', e.target.value)} className={inputCls}>
+              <option value="">No size guide</option>
+              {sizeGuides.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+            {form.sizeGuideId && (() => {
+              const guide = sizeGuides.find(g => g.id === form.sizeGuideId)
+              return guide ? (
+                <a href={guide.fileUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-block text-xs text-blue-600 hover:underline">
+                  View current guide ↗
+                </a>
+              ) : null
+            })()}
+            {sizeGuides.length === 0 && <p className="text-xs text-gray-400">No size guides yet. <a href="/size-guides" className="text-blue-600 hover:underline">Add one</a></p>}
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">

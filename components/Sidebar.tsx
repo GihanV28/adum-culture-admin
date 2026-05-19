@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, FolderOpen, ShoppingCart, Users, Tag, Mail, FileText, LogOut, Calculator, Image, Layers } from 'lucide-react'
+import { LayoutDashboard, Package, FolderOpen, ShoppingCart, Users, Tag, Mail, FileText, LogOut, Calculator, Image, Layers, Ruler } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const nav = [
@@ -9,6 +9,7 @@ const nav = [
   { href: '/products', label: 'Products', icon: Package },
   { href: '/categories', label: 'Categories', icon: Layers },
   { href: '/collections', label: 'Collections', icon: FolderOpen },
+  { href: '/size-guides', label: 'Size Guide', icon: Ruler },
   { href: '/hero-slides', label: 'Hero Slides', icon: Image },
   { href: '/orders', label: 'Orders', icon: ShoppingCart },
   { href: '/users', label: 'Customers', icon: Users },

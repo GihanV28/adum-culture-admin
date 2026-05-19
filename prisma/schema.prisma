@@ -72,6 +72,17 @@ model ProductVariant {
   updatedAt  DateTime @updatedAt
 }
 
+// ===== SIZE GUIDES =====
+model SizeGuide {
+  id        String    @id @default(cuid())
+  name      String
+  fileUrl   String
+  fileType  String    // 'image' | 'pdf'
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
 // ===== CATEGORIES (ORM inventory categories) =====
 model Category {
   id          String     @id @default(cuid())
@@ -116,6 +127,8 @@ model Product {
   productNotes     String?
   categoryId       String?
   category         Category?           @relation(fields: [categoryId], references: [id])
+  sizeGuideId      String?
+  sizeGuide        SizeGuide?          @relation(fields: [sizeGuideId], references: [id])
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   images           ProductImage[]

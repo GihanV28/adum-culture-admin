@@ -31,6 +31,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
           // Flatten relations
           collectionIds: p.collections.map((c: { collectionId: string }) => c.collectionId),
           categoryId: p.category?.id || p.categoryId || '',
+          sizeGuideId: p.sizeGuideId || '',
           // Normalise numeric fields
           price: p.price ?? 0,
           comparePrice: p.comparePrice ?? 0,
