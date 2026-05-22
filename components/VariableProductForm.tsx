@@ -1,0 +1,415 @@
+'use client'
+import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import Image from 'next/image'
+import { adminFetch } from '@/lib/api'
+import { slugify } from '@/lib/utils'
+import { Plus, Trash2, Upload, X } from 'lucide-react'
+
+interface Collection { id: string; name: string }
+interface Category { id: string; name: string }
+interface SizeGuide { id: string; name: string; unit: string; columns: string[]; rows: { size: string; values: string[] }[] }
+interface SizeRow { size: string; stock: number }
+interface ColorVariant {
+  colorHex: string
+  sku: string
+  skuLoading?: boolean
+  images: { url: string; order: number }[]
+  sizes: SizeRow[]
+}
+
+interface FormData {
+  name: string; slug: string; description: string
+  price: number; comparePrice: number; costPrice: number
+  status: string; featured: boolean; newArrival: boolean; bestSeller: boolean
+  minStock: number; categoryId: string; sizeGuideId: string; productNotes: string
+  modelDetails: string; material: string
+  careInstructions: string; styleGuide: string; shippingInfo: string
+  collectionIds: string[]
+}
+
+export default function VariableProductForm({ initial, id, collections, initialVariants }: {
+  initial?: Partial<FormData>
+  initialVariants?: ColorVariant[]
+  id?: string
+  collections: Collection[]
+}) {
+  const router = useRouter()
+  const [categories, setCategories] = useState<Category[]>([])
+  const [sizeGuides, setSizeGuides] = useState<SizeGuide[]>([])
+  const [form, setForm] = useState<FormData>({
+    name: '', slug: '', description: '',
+    price: 0, comparePrice: 0, costPrice: 0,
+    status: 'published', featured: false, newArrival: false, bestSeller: false,
+    minStock: 5, categoryId: '', sizeGuideId: '', productNotes: '',
+    modelDetails: '', material: '',
+    careInstructions: '', styleGuide: '', shippingInfo: '',
+    collectionIds: [],
+    ...initial,
+  })
+  const [variants, setVariants] = useState<ColorVariant[]>(initialVariants ?? [])
+  const [newSizes, setNewSizes] = useState<{ size: string; stock: number }[]>([])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const fileRefs = useRef<(HTMLInputElement | null)[]>([])
+
+  useEffect(() => {
+    adminFetch('/api/categories').then(d => setCategories(d.data.categories)).catch(() => {})
+    adminFetch('/api/size-guides').then(d => setSizeGuides(d.data.guides)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    setNewSizes(prev => {
+      const next = [...prev]
+      while (next.length < variants.length) next.push({ size: '', stock: 0 })
+      return next.slice(0, variants.length)
+    })
+  }, [variants.length])
+
+  const set = (k: keyof FormData, v: unknown) => setForm(f => ({ ...f, [k]: v }))
+  const handleNameChange = (v: string) => { set('name', v); set('slug', slugify(v)) }
+
+  const buildSku = async (catLetter: string, colorHex: string): Promise<string> => {
+    const colorLetter = colorHex.length >= 1
+      ? String.fromCharCode(65 + (parseInt(colorHex.slice(1, 3) || '0', 16) % 26))
+      : 'X'
+    const res = await adminFetch('/api/products/next-sku-number')
+    return `AC-${catLetter}-${colorLetter}-${res.data.padded}`
+  }
+
+  const handleCategoryChange = async (catId: string) => {
+    set('categoryId', catId)
+    if (!catId || variants.length === 0) return
+    const cat = categories.find(c => c.id === catId)
+    const catLetter = cat ? cat.name[0].toUpperCase() : 'X'
+    // Rebuild SKUs for all existing variants
+    const updated = await Promise.all(variants.map(async (v) => ({
+      ...v,
+      sku: await buildSku(catLetter, v.colorHex),
+    })))
+    setVariants(updated)
+  }
+
+  const addVariant = async () => {
+    const cat = categories.find(c => c.id === form.categoryId)
+    const catLetter = cat ? cat.name[0].toUpperCase() : 'X'
+    const newVariant: ColorVariant = { colorHex: '#000000', sku: '', skuLoading: true, images: [], sizes: [] }
+    setVariants(prev => [...prev, newVariant])
+    try {
+      const sku = await buildSku(catLetter, '#000000')
+      setVariants(prev => prev.map((v, i) => i === prev.length - 1 ? { ...v, sku, skuLoading: false } : v))
+    } catch {
+      setVariants(prev => prev.map((v, i) => i === prev.length - 1 ? { ...v, skuLoading: false } : v))
+    }
+  }
+
+  const updateVariant = (vi: number, patch: Partial<ColorVariant>) =>
+    setVariants(prev => prev.map((v, i) => i === vi ? { ...v, ...patch } : v))
+
+  const handleColorChange = async (vi: number, hex: string) => {
+    updateVariant(vi, { colorHex: hex, skuLoading: true })
+    const cat = categories.find(c => c.id === form.categoryId)
+    const catLetter = cat ? cat.name[0].toUpperCase() : 'X'
+    try {
+      const sku = await buildSku(catLetter, hex)
+      setVariants(prev => prev.map((v, i) => i === vi ? { ...v, colorHex: hex, sku, skuLoading: false } : v))
+    } catch {
+      setVariants(prev => prev.map((v, i) => i === vi ? { ...v, colorHex: hex, skuLoading: false } : v))
+    }
+  }
+
+  const removeVariant = (vi: number) => setVariants(prev => prev.filter((_, i) => i !== vi))
+
+  const uploadImageForVariant = async (vi: number, file: File) => {
+    updateVariant(vi, { skuLoading: true })
+    const fd = new FormData(); fd.append('file', file)
+    const token = localStorage.getItem('admin_token')
+    const res = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd })
+    const data = await res.json()
+    if (data.success) {
+      const v = variants[vi]
+      updateVariant(vi, { images: [...v.images, { url: data.data.url, order: v.images.length }] })
+    }
+    updateVariant(vi, { skuLoading: false })
+  }
+
+  const removeImageFromVariant = (vi: number, imgIdx: number) => {
+    const v = variants[vi]
+    updateVariant(vi, { images: v.images.filter((_, i) => i !== imgIdx).map((img, i) => ({ ...img, order: i })) })
+  }
+
+  const addSizeToVariant = (vi: number) => {
+    const ns = newSizes[vi]
+    if (!ns?.size) return
+    const v = variants[vi]
+    updateVariant(vi, { sizes: [...v.sizes, { size: ns.size, stock: ns.stock }] })
+    setNewSizes(prev => prev.map((s, i) => i === vi ? { size: '', stock: 0 } : s))
+  }
+
+  const toggleCollection = (cid: string) => set('collectionIds', form.collectionIds.includes(cid) ? form.collectionIds.filter(c => c !== cid) : [...form.collectionIds, cid])
+
+  const save = async () => {
+    if (variants.length === 0) { setError('Add at least one color variant'); return }
+    setSaving(true); setError('')
+    try {
+      const payload = {
+        productType: 'variable',
+        name: form.name, slug: form.slug,
+        description: form.description,
+        price: Number(form.price),
+        comparePrice: Number(form.comparePrice) || undefined,
+        costPrice: Number(form.costPrice) || 0,
+        status: form.status,
+        featured: form.featured, newArrival: form.newArrival, bestSeller: form.bestSeller,
+        stock: 0, minStock: Number(form.minStock) || 5,
+        categoryId: form.categoryId || undefined,
+        sizeGuideId: form.sizeGuideId || undefined,
+        productNotes: form.productNotes || undefined,
+        modelDetails: form.modelDetails || undefined,
+        material: form.material || undefined,
+        careInstructions: form.careInstructions ? form.careInstructions.split('\n').filter(Boolean) : [],
+        styleGuide: form.styleGuide ? form.styleGuide.split('\n').filter(Boolean) : [],
+        shippingInfo: form.shippingInfo ? form.shippingInfo.split('\n').filter(Boolean) : [],
+        images: [], sizes: [],
+        collectionIds: form.collectionIds,
+        colorVariants: variants.map(v => ({ colorHex: v.colorHex, sku: v.sku, images: v.images, sizes: v.sizes })),
+      }
+      if (id) await adminFetch(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+      else await adminFetch('/api/products', { method: 'POST', body: JSON.stringify(payload) })
+      router.push('/products')
+    } catch (err) { setError(err instanceof Error ? err.message : 'Save failed') }
+    setSaving(false)
+  }
+
+  const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
+
+  return (
+    <div className="p-8">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{id ? 'Edit Product' : 'New Variable Product'}</h1>
+          <p className="text-xs text-gray-400 mt-1">Multiple colors · SKU per color</p>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={() => router.push('/products')} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+          <button onClick={save} disabled={saving} className="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">{saving ? 'Saving…' : 'Save Product'}</button>
+        </div>
+      </div>
+      {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
+
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2 space-y-6">
+          {/* Category FIRST */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="font-semibold text-gray-900 mb-4">Category <span className="text-red-500">*</span> <span className="text-xs font-normal text-gray-400">— required first to generate SKUs</span></h2>
+            <select value={form.categoryId} onChange={e => handleCategoryChange(e.target.value)} className={inputCls}>
+              <option value="">Select category</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          {/* Color Variants */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900">Color Variants</h2>
+              <button onClick={addVariant} disabled={!form.categoryId}
+                className="flex items-center gap-1.5 text-sm px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-40">
+                <Plus className="w-4 h-4" /> Add Color
+              </button>
+            </div>
+            {!form.categoryId && <p className="text-xs text-amber-600">Select a category first to generate SKUs.</p>}
+            {variants.length === 0 && form.categoryId && (
+              <div className="text-center py-8 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
+                Click <strong>Add Color</strong> to add the first color variant.
+              </div>
+            )}
+            {variants.map((variant, vi) => (
+              <div key={vi} className="border border-gray-200 rounded-xl overflow-hidden">
+                {/* Color header */}
+                <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
+                  <input type="color" value={variant.colorHex} onChange={e => handleColorChange(vi, e.target.value)}
+                    className="w-9 h-9 rounded-lg cursor-pointer border border-gray-200 p-0.5 bg-white" />
+                  <input value={variant.colorHex} onChange={e => handleColorChange(vi, e.target.value)}
+                    className="w-24 px-2 py-1 border border-gray-200 rounded text-xs font-mono focus:outline-none" />
+                  <div className="flex-1">
+                    <span className="text-xs text-gray-400">SKU: </span>
+                    <span className="text-xs font-mono font-semibold text-gray-700">
+                      {variant.skuLoading ? 'generating…' : (variant.sku || '—')}
+                    </span>
+                  </div>
+                  <button onClick={() => removeVariant(vi)} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
+                </div>
+
+                <div className="p-4 space-y-4">
+                  {/* Images for this color */}
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 mb-2">Images for this color</p>
+                    <div className="flex flex-wrap gap-2">
+                      {variant.images.map((img, ii) => (
+                        <div key={ii} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 group">
+                          <Image src={img.url} alt="" fill className="object-cover" />
+                          <button onClick={() => removeImageFromVariant(vi, ii)}
+                            className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center">
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                      <button onClick={() => fileRefs.current[vi]?.click()}
+                        className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-gray-400">
+                        <Upload className="w-4 h-4" />
+                        <span className="text-xs">Upload</span>
+                      </button>
+                      <input ref={el => { fileRefs.current[vi] = el }} type="file" accept="image/*" className="hidden"
+                        onChange={e => e.target.files?.[0] && uploadImageForVariant(vi, e.target.files[0])} />
+                    </div>
+                  </div>
+
+                  {/* Sizes for this color */}
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 mb-2">Sizes & Stock</p>
+                    {variant.sizes.length > 0 && (
+                      <table className="w-full text-sm mb-2">
+                        <thead><tr className="border-b border-gray-100">
+                          <th className="pb-1 text-left text-xs font-medium text-gray-400 w-28">Size</th>
+                          <th className="pb-1 text-left text-xs font-medium text-gray-400 w-24">Stock</th>
+                          <th className="pb-1 text-left text-xs font-medium text-gray-400">Status</th>
+                          <th className="w-6"></th>
+                        </tr></thead>
+                        <tbody>
+                          {variant.sizes.map((s, si) => (
+                            <tr key={si}>
+                              <td className="py-1 pr-2">
+                                <input value={s.size} onChange={e => updateVariant(vi, { sizes: variant.sizes.map((r, j) => j === si ? { ...r, size: e.target.value } : r) })}
+                                  className="w-24 px-2 py-1 border border-gray-200 rounded text-sm" />
+                              </td>
+                              <td className="py-1 pr-2">
+                                <input type="number" min={0} value={s.stock} onChange={e => updateVariant(vi, { sizes: variant.sizes.map((r, j) => j === si ? { ...r, stock: +e.target.value } : r) })}
+                                  className="w-24 px-2 py-1 border border-gray-200 rounded text-sm" />
+                              </td>
+                              <td className="py-1">
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                                  {s.stock > 0 ? 'In Stock' : 'Out of Stock'}
+                                </span>
+                              </td>
+                              <td className="py-1">
+                                <button onClick={() => updateVariant(vi, { sizes: variant.sizes.filter((_, j) => j !== si) })} className="text-gray-300 hover:text-red-500">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    <div className="flex gap-2 items-center">
+                      <input placeholder="Size" value={newSizes[vi]?.size ?? ''} onChange={e => setNewSizes(prev => prev.map((s, i) => i === vi ? { ...s, size: e.target.value } : s))}
+                        onKeyDown={e => e.key === 'Enter' && addSizeToVariant(vi)} className="w-24 px-2 py-1.5 border border-gray-300 rounded text-sm" />
+                      <input type="number" placeholder="Stock" value={newSizes[vi]?.stock ?? 0} onChange={e => setNewSizes(prev => prev.map((s, i) => i === vi ? { ...s, stock: +e.target.value } : s))}
+                        onKeyDown={e => e.key === 'Enter' && addSizeToVariant(vi)} className="w-20 px-2 py-1.5 border border-gray-300 rounded text-sm" />
+                      <button onClick={() => addSizeToVariant(vi)} className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm">
+                        <Plus className="w-3.5 h-3.5" /> Add size
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Basic Info */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <h2 className="font-semibold text-gray-900">Basic Information</h2>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Product Name *</label>
+              <input value={form.name} onChange={e => handleNameChange(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Slug *</label>
+              <input value={form.slug} onChange={e => set('slug', e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+              <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3} className={inputCls} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="block text-xs font-medium text-gray-700 mb-1">Material</label>
+                <input value={form.material} onChange={e => set('material', e.target.value)} className={inputCls} /></div>
+              <div><label className="block text-xs font-medium text-gray-700 mb-1">Model Details</label>
+                <input value={form.modelDetails} onChange={e => set('modelDetails', e.target.value)} className={inputCls} /></div>
+            </div>
+          </div>
+
+          {/* Pricing */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <h2 className="font-semibold text-gray-900">Pricing</h2>
+            <div className="grid grid-cols-3 gap-4">
+              <div><label className="block text-xs font-medium text-gray-700 mb-1">Selling Price (LKR) *</label>
+                <input type="number" value={form.price} onChange={e => set('price', e.target.value)} className={inputCls} /></div>
+              <div><label className="block text-xs font-medium text-gray-700 mb-1">Original Price (LKR)</label>
+                <input type="number" value={form.comparePrice} onChange={e => set('comparePrice', e.target.value)} className={inputCls} /></div>
+              <div><label className="block text-xs font-medium text-gray-700 mb-1">Cost Price (LKR)</label>
+                <input type="number" value={form.costPrice} onChange={e => set('costPrice', e.target.value)} className={inputCls} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="block text-xs font-medium text-gray-700 mb-1">Min Stock Alert</label>
+                <input type="number" value={form.minStock} onChange={e => set('minStock', e.target.value)} className={inputCls} /></div>
+              <div><label className="block text-xs font-medium text-gray-700 mb-1">Internal Notes</label>
+                <input value={form.productNotes} onChange={e => set('productNotes', e.target.value)} className={inputCls} /></div>
+            </div>
+          </div>
+
+          {/* Additional Info */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <h2 className="font-semibold text-gray-900">Additional Info</h2>
+            <div><label className="block text-xs font-medium text-gray-700 mb-1">Care Instructions (one per line)</label>
+              <textarea value={form.careInstructions} onChange={e => set('careInstructions', e.target.value)} rows={3} className={inputCls} /></div>
+            <div><label className="block text-xs font-medium text-gray-700 mb-1">Style Guide (one per line)</label>
+              <textarea value={form.styleGuide} onChange={e => set('styleGuide', e.target.value)} rows={3} className={inputCls} /></div>
+            <div><label className="block text-xs font-medium text-gray-700 mb-1">Shipping & Returns (one per line)</label>
+              <textarea value={form.shippingInfo} onChange={e => set('shippingInfo', e.target.value)} rows={3} className={inputCls} /></div>
+          </div>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <h2 className="font-semibold text-gray-900">Status</h2>
+            <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="active">Active (ORM)</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <div className="space-y-2">
+              {[{ key: 'featured', label: 'Featured' }, { key: 'newArrival', label: 'New Arrival' }, { key: 'bestSeller', label: 'Best Seller' }].map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={form[key as keyof FormData] as boolean} onChange={e => set(key as keyof FormData, e.target.checked)} className="rounded" />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+            <h2 className="font-semibold text-gray-900">Size Guide</h2>
+            <select value={form.sizeGuideId} onChange={e => set('sizeGuideId', e.target.value)} className={inputCls}>
+              <option value="">No size guide</option>
+              {sizeGuides.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+            <h2 className="font-semibold text-gray-900">Collections</h2>
+            {collections.map(c => (
+              <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={form.collectionIds.includes(c.id)} onChange={() => toggleCollection(c.id)} className="rounded" />
+                {c.name}
+              </label>
+            ))}
+            {collections.length === 0 && <p className="text-xs text-gray-400">No collections yet.</p>}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

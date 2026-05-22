@@ -65,8 +65,13 @@ export default function ProductsPage() {
                     <div className="flex items-center gap-3">
                       {p.images[0] ? <Image src={p.images[0].url} alt={p.name} width={40} height={40} className="w-10 h-10 rounded-lg object-cover bg-gray-100" /> : <div className="w-10 h-10 rounded-lg bg-gray-100" />}
                       <div>
-                        <p className="font-medium text-gray-900">{p.name}</p>
-                        <p className="text-xs text-gray-400">{p.slug}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-gray-900">{p.name}</p>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${(p as {productType?: string}).productType === 'variable' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
+                            {(p as {productType?: string}).productType === 'variable' ? 'Variable' : 'Single'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400">{p.itemCode ?? p.slug}</p>
                       </div>
                     </div>
                   </td>

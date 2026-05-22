@@ -11,6 +11,13 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS })
 }
 
+type ColorVariantRaw = {
+  colorHex: string
+  sku?: string | null
+  images?: { url: string; order: number }[]
+  sizes?: { size: string; stock: number }[]
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const category = searchParams.get('category') ?? ''
@@ -37,37 +44,63 @@ export async function GET(req: NextRequest) {
     take: limit,
   })
 
-  const shaped = products.map(p => ({
-    _id: p.id,
-    name: p.name,
-    slug: p.slug,
-    itemCode: p.itemCode,
-    description: p.description,
-    price: p.price,
-    originalPrice: p.comparePrice,
-    images: p.images.map(img => img.url),
-    sizes: p.sizes.map(s => ({ size: s.size, quantity: s.stock })),
-    colors: (p.colors as string[]) ?? [],
-    newArrival: p.newArrival,
-    bestSeller: p.bestSeller,
-    featured: p.featured,
-    stock: p.stock,
-    category: p.collections[0]?.collection.slug ?? '',
-    categoryName: p.collections[0]?.collection.name ?? '',
-    colorVariants: (p.colorVariants as { colorHex: string; colorName: string; sizes: { size: string; stock: number }[] }[]) ?? [],
-    sizeGuideData: p.sizeGuide ? {
-      name: p.sizeGuide.name,
-      note: p.sizeGuide.note,
-      unit: p.sizeGuide.unit,
-      columns: p.sizeGuide.columns,
-      rows: p.sizeGuide.rows,
-    } : null,
-    modelDetails: p.modelDetails,
-    material: p.material,
-    careInstructions: (p.careInstructions as string[]) ?? [],
-    styleGuide: (p.styleGuide as string[]) ?? [],
-    shippingInfo: (p.shippingInfo as string[]) ?? [],
-  }))
+  const shaped = products.map(p => {
+    const variants = (p.colorVariants as ColorVariantRaw[] | null) ?? []
+    const isVariable = p.productType === 'variable'
+
+    // For variable: images come from first variant; for single: from ProductImage table
+    const defaultImages = isVariable
+      ? (variants[0]?.images ?? []).sort((a, b) => a.order - b.order).map(i => i.url)
+      : p.images.map(img => img.url)
+
+    // Sizes: for single from ProductSize table; for variable aggregate from variants
+    const sizes = isVariable
+      ? Object.entries(
+          variants.flatMap(cv => cv.sizes ?? []).reduce((acc: Record<string, number>, s) => {
+            acc[s.size] = (acc[s.size] ?? 0) + s.stock
+            return acc
+          }, {})
+        ).map(([size, quantity]) => ({ size, quantity }))
+      : p.sizes.map(s => ({ size: s.size, quantity: s.stock }))
+
+    return {
+      _id: p.id,
+      name: p.name,
+      slug: p.slug,
+      itemCode: p.itemCode,
+      productType: p.productType,
+      description: p.description,
+      price: p.price,
+      originalPrice: p.comparePrice,
+      images: defaultImages,
+      sizes,
+      colors: (p.colors as string[]) ?? [],
+      colorVariants: variants.map(cv => ({
+        colorHex: cv.colorHex,
+        sku: cv.sku ?? null,
+        images: (cv.images ?? []).sort((a, b) => a.order - b.order).map(i => i.url),
+        sizes: (cv.sizes ?? []).map(s => ({ size: s.size, stock: s.stock })),
+      })),
+      sizeGuideData: p.sizeGuide ? {
+        name: p.sizeGuide.name,
+        note: p.sizeGuide.note,
+        unit: p.sizeGuide.unit,
+        columns: p.sizeGuide.columns,
+        rows: p.sizeGuide.rows,
+      } : null,
+      newArrival: p.newArrival,
+      bestSeller: p.bestSeller,
+      featured: p.featured,
+      stock: p.stock,
+      category: p.collections[0]?.collection.slug ?? '',
+      categoryName: p.collections[0]?.collection.name ?? '',
+      modelDetails: p.modelDetails,
+      material: p.material,
+      careInstructions: (p.careInstructions as string[]) ?? [],
+      styleGuide: (p.styleGuide as string[]) ?? [],
+      shippingInfo: (p.shippingInfo as string[]) ?? [],
+    }
+  })
 
   return NextResponse.json({ success: true, data: { products: shaped } }, { headers: CORS })
 }
