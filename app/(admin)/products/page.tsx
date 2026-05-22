@@ -6,7 +6,7 @@ import { adminFetch } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
 
-interface Product { id: string; name: string; slug: string; price: number; status: string; featured: boolean; images: { url: string }[]; sizes: { size: string; stock: number }[] }
+interface Product { id: string; name: string; slug: string; itemCode?: string | null; productType?: string; price: number; status: string; featured: boolean; images: { url: string }[]; sizes: { size: string; stock: number }[] }
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
