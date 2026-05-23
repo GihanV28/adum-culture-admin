@@ -176,18 +176,7 @@ export default function CollectionsPage() {
 
   return (
     <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Collections</h1>
-        {collections.length > 1 && (
-          <button
-            onClick={() => setShowReorder(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <ArrowUpDown className="w-4 h-4" />
-            Change Order
-          </button>
-        )}
-      </div>
+      <h1 className="text-2xl font-bold text-gray-900 mb-8">Collections</h1>
 
       {/* New Collection Form */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 space-y-4">
@@ -286,6 +275,18 @@ export default function CollectionsPage() {
           </div>
         ))}
       </div>
+
+      {collections.length > 1 && (
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => setShowReorder(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            Change Order
+          </button>
+        </div>
+      )}
 
       {showReorder && (
         <ReorderModal
