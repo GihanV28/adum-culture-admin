@@ -3,10 +3,128 @@ import { useEffect, useState, useRef } from 'react'
 import Image from 'next/image'
 import { adminFetch } from '@/lib/api'
 import { slugify } from '@/lib/utils'
-import { Plus, Pencil, Trash2, X, Check, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, Upload, GripVertical, ArrowUpDown } from 'lucide-react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface Collection { id: string; name: string; slug: string; description?: string; imageUrl?: string; published: boolean; order: number; _count: { products: number } }
 
+// ─── Sortable row inside the reorder modal ───────────────────────────────────
+function SortableCollectionRow({ collection }: { collection: Collection }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: collection.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-100 rounded-lg mb-2 shadow-sm"
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 touch-none"
+      >
+        <GripVertical className="w-5 h-5" />
+      </button>
+      <div className="flex-shrink-0 w-9 h-9 rounded-md overflow-hidden border border-gray-100 bg-gray-50">
+        {collection.imageUrl
+          ? <Image src={collection.imageUrl} alt={collection.name} width={36} height={36} className="w-full h-full object-cover" />
+          : <div className="w-full h-full flex items-center justify-center text-gray-300 text-[10px]">–</div>}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm text-gray-900 truncate">{collection.name}</p>
+        <p className="text-xs text-gray-400 truncate">{collection.slug}</p>
+      </div>
+    </div>
+  )
+}
+
+// ─── Reorder Modal ───────────────────────────────────────────────────────────
+function ReorderModal({ collections, onClose, onSaved }: { collections: Collection[]; onClose: () => void; onSaved: () => void }) {
+  const [items, setItems] = useState<Collection[]>([...collections].sort((a, b) => a.order - b.order))
+  const [saving, setSaving] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (over && active.id !== over.id) {
+      setItems(prev => {
+        const oldIndex = prev.findIndex(c => c.id === active.id)
+        const newIndex = prev.findIndex(c => c.id === over.id)
+        return arrayMove(prev, oldIndex, newIndex)
+      })
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    await adminFetch('/api/collections/reorder', {
+      method: 'PATCH',
+      body: JSON.stringify({ items: items.map((c, i) => ({ id: c.id, order: i })) }),
+    })
+    setSaving(false)
+    onSaved()
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col max-h-[80vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="font-semibold text-gray-900">Change Collection Order</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Drag rows to reorder. Changes apply to the storefront.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 text-gray-400">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Sortable list */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={items.map(c => c.id)} strategy={verticalListSortingStrategy}>
+              {items.map(c => <SortableCollectionRow key={c.id} collection={c} />)}
+            </SortableContext>
+          </DndContext>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-black text-white hover:bg-gray-800 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save Order'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function CollectionsPage() {
   const [collections, setCollections] = useState<Collection[]>([])
   const [form, setForm] = useState({ name: '', slug: '', description: '', imageUrl: '', published: true })
@@ -15,6 +133,7 @@ export default function CollectionsPage() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [editUploading, setEditUploading] = useState(false)
+  const [showReorder, setShowReorder] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const editFileRef = useRef<HTMLInputElement>(null)
 
@@ -57,7 +176,18 @@ export default function CollectionsPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-8">Collections</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Collections</h1>
+        {collections.length > 1 && (
+          <button
+            onClick={() => setShowReorder(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            Change Order
+          </button>
+        )}
+      </div>
 
       {/* New Collection Form */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 space-y-4">
@@ -156,6 +286,14 @@ export default function CollectionsPage() {
           </div>
         ))}
       </div>
+
+      {showReorder && (
+        <ReorderModal
+          collections={collections}
+          onClose={() => setShowReorder(false)}
+          onSaved={load}
+        />
+      )}
     </div>
   )
 }
