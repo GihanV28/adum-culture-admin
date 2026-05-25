@@ -14,7 +14,7 @@ const DEFAULT_SIZES = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL']
 
 function emptyForm() {
   return {
-    name: '', note: '', unit: 'INCH' as 'CM' | 'INCH' | 'BOTH',
+    name: '', note: '', unit: 'INCH' as 'CM' | 'INCH',
     columns: [...DEFAULT_COLUMNS],
     rows: DEFAULT_SIZES.slice(0, 5).map(s => ({ size: s, values: DEFAULT_COLUMNS.map(() => '') })),
   }
@@ -79,9 +79,12 @@ function ChartEditor({
           <input value={form.name} onChange={e => set({ name: e.target.value })} className={inputCls} placeholder="e.g. Women's Tops" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Unit
+            <span className="ml-1 font-normal text-gray-400">(FE auto-converts between CM ↔ INCH)</span>
+          </label>
           <div className="flex gap-1">
-            {(['CM', 'INCH', 'BOTH'] as const).map(u => (
+            {(['CM', 'INCH'] as const).map(u => (
               <button key={u} onClick={() => set({ unit: u })}
                 className={`flex-1 py-1.5 rounded text-xs font-medium border transition-colors ${form.unit === u ? 'bg-black text-white border-black' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
                 {u}
@@ -159,9 +162,8 @@ function ChartPreview({ guide }: { guide: Guide }) {
     <div className="overflow-x-auto">
       {guide.note && <p className="text-xs text-gray-500 mb-2 italic">{guide.note}</p>}
       <div className="flex gap-2 mb-2">
-        {(guide.unit === 'BOTH' ? ['CM', 'INCH'] : [guide.unit]).map(u => (
-          <span key={u} className="text-xs font-semibold uppercase tracking-wider px-2 py-0.5 bg-gray-100 rounded text-gray-600">{u}</span>
-        ))}
+        <span className="text-xs font-semibold uppercase tracking-wider px-2 py-0.5 bg-gray-100 rounded text-gray-600">{guide.unit}</span>
+        <span className="text-xs text-gray-400">(auto-converts CM ↔ INCH in storefront)</span>
       </div>
       <table className="w-full border-collapse text-xs">
         <thead>
@@ -221,7 +223,7 @@ export default function SizeGuidesPage() {
     setEditId(g.id)
     setExpanded(g.id)
     setEditForm({
-      name: g.name, note: g.note ?? '', unit: g.unit as 'CM' | 'INCH' | 'BOTH',
+      name: g.name, note: g.note ?? '', unit: (g.unit === 'CM' ? 'CM' : 'INCH') as 'CM' | 'INCH',
       columns: g.columns as string[],
       rows: g.rows as Row[],
     })
