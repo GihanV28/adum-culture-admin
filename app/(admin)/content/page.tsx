@@ -16,9 +16,21 @@ const DEFAULT_CONTACT: Record<string, string> = {
   facebookUrl: '', facebookLabel: 'Facebook',
 }
 
+const DEFAULT_VALUES: Record<string, string> = {
+  value1_title: 'Beyond the Fabrics',
+  value1_body: "We believe clothing is an extension of who you are. We empower our community to wear their unique identity with absolute pride, offering more than just garments — we offer a lifestyle and a platform for self-expression.",
+  value2_title: 'Bold Craftsmanship',
+  value2_body: "Quality is our signature. We merge international street-style trends with premium materials, ensuring every piece is architecturally designed to look stunning and feel incredible to wear.",
+  value3_title: 'Passion & Perseverance',
+  value3_body: "Built from the ground up by a young couple's hard-earned investments and tireless effort, we value the grind. Authenticity, resilience, and heart are woven into the very core of our brand.",
+  value4_title: 'Global Vision',
+  value4_body: "We dream big. While our roots ground us, our designs are crafted to transcend borders, delivering a truly international standard of premium fashion to the world.",
+}
+
 const CONTENT_KEYS = [
   { key: 'contact_info',         label: 'Contact Us',            type: 'contact',  description: 'Get In Touch section on the Contact page' },
   { key: 'about_us',             label: 'About Us',              type: 'about',    description: 'Description and image for the About page' },
+  { key: 'about_values',         label: 'Our Values',            type: 'values',   description: 'Four value cards shown on the About page' },
   { key: 'about_story',          label: 'Our Story',             type: 'story',    description: 'Short version shown on the homepage' },
   { key: 'shipping_info',        label: 'Shipping Policy',       type: 'policy',   description: 'Shipping policy page content' },
   { key: 'returns_policy',       label: 'Exchange & Refund',     type: 'policy',   description: 'Exchange & refund policy content' },
@@ -32,6 +44,7 @@ export default function ContentPage() {
   const [editing, setEditing] = useState<string | null>(null)
   const [form, setForm] = useState<Partial<ContentBlock>>({})
   const [contactData, setContactData] = useState<Record<string, string>>({ ...DEFAULT_CONTACT })
+  const [valuesData, setValuesData] = useState<Record<string, string>>({ ...DEFAULT_VALUES })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -53,6 +66,9 @@ export default function ContentPage() {
     if (key === 'contact_info') {
       setContactData({ ...DEFAULT_CONTACT, ...(block?.data ?? {}) })
     }
+    if (key === 'about_values') {
+      setValuesData({ ...DEFAULT_VALUES, ...(block?.data ?? {}) })
+    }
   }
 
   const uploadImage = async (file: File) => {
@@ -70,6 +86,8 @@ export default function ContentPage() {
     setSaving(true)
     const payload = editing === 'contact_info'
       ? { key: editing, data: contactData }
+      : editing === 'about_values'
+      ? { key: editing, data: valuesData }
       : { ...form, key: editing }
     const d = await adminFetch('/api/content', { method: 'PUT', body: JSON.stringify(payload) })
     setBlocks(b => ({ ...b, [editing]: d.data.content }))
@@ -201,6 +219,37 @@ export default function ContentPage() {
                         onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0])} />
                     </div>
                   </>
+                )}
+
+                {/* ── VALUES type ── */}
+                {type === 'values' && (
+                  <div className="space-y-6">
+                    <p className="text-xs text-gray-400">Edit the four value cards shown in the &quot;Our Values&quot; section on the About page.</p>
+                    {[1, 2, 3, 4].map(n => (
+                      <div key={n} className="border border-gray-100 rounded-lg p-4 space-y-3 bg-gray-50">
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Value 0{n}</p>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                          <input
+                            value={valuesData[`value${n}_title`] ?? ''}
+                            onChange={e => setValuesData(d => ({ ...d, [`value${n}_title`]: e.target.value }))}
+                            className={inputCls}
+                            placeholder={`Value ${n} title`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                          <textarea
+                            value={valuesData[`value${n}_body`] ?? ''}
+                            rows={3}
+                            onChange={e => setValuesData(d => ({ ...d, [`value${n}_body`]: e.target.value }))}
+                            className={inputCls}
+                            placeholder={`Value ${n} description`}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
 
                 {/* ── STORY type ── */}
