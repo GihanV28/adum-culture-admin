@@ -118,7 +118,7 @@ function ReorderModal({ slides, onClose, onSaved }: { slides: Slide[]; onClose: 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function HeroSlidesPage() {
   const [slides, setSlides] = useState<Slide[]>([])
-  const [form, setForm] = useState({ alt: '', desktopImageUrl: '', mobileImageUrl: '', order: 0, active: true })
+  const [form, setForm] = useState({ alt: '', desktopImageUrl: '', mobileImageUrl: '', active: true })
   const [uploading, setUploading] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [showReorder, setShowReorder] = useState(false)
@@ -141,8 +141,8 @@ export default function HeroSlidesPage() {
   const create = async () => {
     if (!form.alt || !form.desktopImageUrl || !form.mobileImageUrl) return
     setSaving(true)
-    await adminFetch('/api/hero-slides', { method: 'POST', body: JSON.stringify(form) })
-    setForm({ alt: '', desktopImageUrl: '', mobileImageUrl: '', order: 0, active: true })
+    await adminFetch('/api/hero-slides', { method: 'POST', body: JSON.stringify({ ...form, order: slides.length }) })
+    setForm({ alt: '', desktopImageUrl: '', mobileImageUrl: '', active: true })
     load(); setSaving(false)
   }
 
@@ -204,10 +204,6 @@ export default function HeroSlidesPage() {
             )}
             <input ref={mobileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], 'mobileImageUrl')} />
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Order</label>
-            <input type="number" value={form.order} onChange={e => setForm(f => ({ ...f, order: +e.target.value }))} className={inputCls} />
-          </div>
         </div>
         <button onClick={create} disabled={!form.alt || !form.desktopImageUrl || !form.mobileImageUrl || saving}
           className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 disabled:opacity-40">
@@ -226,7 +222,6 @@ export default function HeroSlidesPage() {
             </div>
             <div className="flex-1">
               <p className="font-medium text-gray-900">{s.alt}</p>
-              <p className="text-xs text-gray-400 mt-0.5">Order: {s.order}</p>
             </div>
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{s.active ? 'Active' : 'Hidden'}</span>
             <button onClick={() => toggle(s)} className="text-gray-400 hover:text-gray-700">
