@@ -13,6 +13,7 @@ export async function OPTIONS() {
 
 type ColorVariantRaw = {
   colorHex: string
+  colorName?: string
   sku?: string | null
   images?: { url: string; order: number }[]
   sizes?: { size: string; stock: number }[]
@@ -77,6 +78,7 @@ export async function GET(req: NextRequest) {
       colors: (p.colors as string[]) ?? [],
       colorVariants: variants.map(cv => ({
         colorHex: cv.colorHex,
+        colorName: cv.colorName ?? null,
         sku: cv.sku ?? null,
         images: (cv.images ?? []).sort((a, b) => a.order - b.order).map(i => i.url),
         sizes: (cv.sizes ?? []).map(s => ({ size: s.size, stock: s.stock })),
