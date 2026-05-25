@@ -209,6 +209,29 @@ export default function VariableProductForm({ initial, id, collections, initialV
             </select>
           </div>
 
+          {/* Basic Info */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <h2 className="font-semibold text-gray-900">Basic Information</h2>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Product Name *</label>
+              <input value={form.name} onChange={e => handleNameChange(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Slug *</label>
+              <input value={form.slug} onChange={e => set('slug', e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+              <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3} className={inputCls} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="block text-xs font-medium text-gray-700 mb-1">Material</label>
+                <input value={form.material} onChange={e => set('material', e.target.value)} className={inputCls} /></div>
+              <div><label className="block text-xs font-medium text-gray-700 mb-1">Model Details</label>
+                <input value={form.modelDetails} onChange={e => set('modelDetails', e.target.value)} className={inputCls} /></div>
+            </div>
+          </div>
+
           {/* Color Variants */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
             <div className="flex items-center justify-between">
@@ -315,29 +338,6 @@ export default function VariableProductForm({ initial, id, collections, initialV
                 </div>
               </div>
             ))}
-          </div>
-
-          {/* Basic Info */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="font-semibold text-gray-900">Basic Information</h2>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Product Name *</label>
-              <input value={form.name} onChange={e => handleNameChange(e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Slug *</label>
-              <input value={form.slug} onChange={e => set('slug', e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
-              <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3} className={inputCls} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-xs font-medium text-gray-700 mb-1">Material</label>
-                <input value={form.material} onChange={e => set('material', e.target.value)} className={inputCls} /></div>
-              <div><label className="block text-xs font-medium text-gray-700 mb-1">Model Details</label>
-                <input value={form.modelDetails} onChange={e => set('modelDetails', e.target.value)} className={inputCls} /></div>
-            </div>
           </div>
 
           {/* Pricing */}
