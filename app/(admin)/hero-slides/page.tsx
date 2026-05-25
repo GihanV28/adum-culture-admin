@@ -1,15 +1,127 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { adminFetch } from '@/lib/api'
-import { Plus, Trash2, ToggleLeft, ToggleRight, Upload, X } from 'lucide-react'
+import { Plus, Trash2, ToggleLeft, ToggleRight, Upload, X, GripVertical, ArrowUpDown } from 'lucide-react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface Slide { id: string; order: number; alt: string; desktopImageUrl: string; mobileImageUrl: string; active: boolean }
 
+// ─── Sortable row inside the reorder modal ───────────────────────────────────
+function SortableSlideRow({ slide }: { slide: Slide }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slide.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-100 rounded-lg mb-2 shadow-sm"
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 touch-none"
+      >
+        <GripVertical className="w-5 h-5" />
+      </button>
+      <div className="flex-shrink-0 w-16 h-10 rounded-md overflow-hidden border border-gray-100 bg-gray-50">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={slide.desktopImageUrl} alt={slide.alt} className="w-full h-full object-cover" />
+      </div>
+      <p className="flex-1 text-sm font-medium text-gray-900 truncate">{slide.alt}</p>
+    </div>
+  )
+}
+
+// ─── Reorder Modal ───────────────────────────────────────────────────────────
+function ReorderModal({ slides, onClose, onSaved }: { slides: Slide[]; onClose: () => void; onSaved: () => void }) {
+  const [items, setItems] = useState<Slide[]>([...slides].sort((a, b) => a.order - b.order))
+  const [saving, setSaving] = useState(false)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (over && active.id !== over.id) {
+      setItems(prev => {
+        const oldIndex = prev.findIndex(s => s.id === active.id)
+        const newIndex = prev.findIndex(s => s.id === over.id)
+        return arrayMove(prev, oldIndex, newIndex)
+      })
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    await adminFetch('/api/hero-slides/reorder', {
+      method: 'PATCH',
+      body: JSON.stringify({ items: items.map((s, i) => ({ id: s.id, order: i })) }),
+    })
+    setSaving(false)
+    onSaved()
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col max-h-[80vh]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="font-semibold text-gray-900">Change Slide Order</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Drag rows to reorder. Changes apply to the storefront hero.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 text-gray-400">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={items.map(s => s.id)} strategy={verticalListSortingStrategy}>
+              {items.map(s => <SortableSlideRow key={s.id} slide={s} />)}
+            </SortableContext>
+          </DndContext>
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-black text-white hover:bg-gray-800 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save Order'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function HeroSlidesPage() {
   const [slides, setSlides] = useState<Slide[]>([])
   const [form, setForm] = useState({ alt: '', desktopImageUrl: '', mobileImageUrl: '', order: 0, active: true })
   const [uploading, setUploading] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [showReorder, setShowReorder] = useState(false)
   const desktopRef = useRef<HTMLInputElement>(null)
   const mobileRef = useRef<HTMLInputElement>(null)
 
@@ -124,6 +236,26 @@ export default function HeroSlidesPage() {
           </div>
         ))}
       </div>
+
+      {slides.length > 1 && (
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => setShowReorder(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            Change Order
+          </button>
+        </div>
+      )}
+
+      {showReorder && (
+        <ReorderModal
+          slides={slides}
+          onClose={() => setShowReorder(false)}
+          onSaved={load}
+        />
+      )}
     </div>
   )
 }
