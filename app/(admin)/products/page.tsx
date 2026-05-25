@@ -6,7 +6,7 @@ import { adminFetch } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
 
-interface Product { id: string; name: string; slug: string; itemCode?: string | null; productType?: string; price: number; status: string; featured: boolean; images: { url: string }[]; sizes: { size: string; stock: number }[] }
+interface Product { id: string; name: string; slug: string; itemCode?: string | null; productType?: string; price: number; status: string; featured: boolean; images: { url: string }[]; sizes: { size: string; stock: number }[]; colorVariants?: { sizes: { stock: number }[] }[] }
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -28,7 +28,12 @@ export default function ProductsPage() {
     load()
   }
 
-  const totalStock = (p: Product) => p.sizes.reduce((s, z) => s + z.stock, 0)
+  const totalStock = (p: Product) => {
+    if (p.productType === 'variable' && p.colorVariants?.length) {
+      return p.colorVariants.reduce((sum, cv) => sum + cv.sizes.reduce((s, sz) => s + sz.stock, 0), 0)
+    }
+    return p.sizes.reduce((s, z) => s + z.stock, 0)
+  }
 
   return (
     <div className="p-8">
