@@ -3,14 +3,14 @@ import { useEffect, useState } from 'react'
 import { adminFetch } from '@/lib/api'
 import { Plus, Edit, Trash2, Tag } from 'lucide-react'
 
-interface Category { id: string; name: string; description?: string; _count?: { products: number } }
+interface Category { id: string; name: string; skuPrefix?: string | null; description?: string; _count?: { products: number } }
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Category | null>(null)
-  const [form, setForm] = useState({ name: '', description: '' })
+  const [form, setForm] = useState({ name: '', skuPrefix: '', description: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -20,11 +20,16 @@ export default function CategoriesPage() {
   }
   useEffect(load, [])
 
-  const openNew = () => { setEditing(null); setForm({ name: '', description: '' }); setShowForm(true); setError('') }
-  const openEdit = (c: Category) => { setEditing(c); setForm({ name: c.name, description: c.description || '' }); setShowForm(true); setError('') }
+  const openNew = () => { setEditing(null); setForm({ name: '', skuPrefix: '', description: '' }); setShowForm(true); setError('') }
+  const openEdit = (c: Category) => {
+    setEditing(c)
+    setForm({ name: c.name, skuPrefix: c.skuPrefix ?? '', description: c.description || '' })
+    setShowForm(true); setError('')
+  }
 
   const save = async () => {
     if (!form.name.trim()) return setError('Name is required')
+    if (!form.skuPrefix.trim()) return setError('SKU Prefix is required')
     setSaving(true); setError('')
     try {
       if (editing) await adminFetch(`/api/categories/${editing.id}`, { method: 'PUT', body: JSON.stringify(form) })
@@ -39,6 +44,8 @@ export default function CategoriesPage() {
     await adminFetch(`/api/categories/${id}`, { method: 'DELETE' })
     load()
   }
+
+  const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
 
   return (
     <div className="p-8">
@@ -56,15 +63,30 @@ export default function CategoriesPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
           <h2 className="font-semibold text-gray-900 mb-4">{editing ? 'Edit Category' : 'New Category'}</h2>
           <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Name *</label>
-              <input
-                value={form.name}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
-                placeholder="e.g. Sarees"
-                autoFocus
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Name *</label>
+                <input
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  className={inputCls}
+                  placeholder="e.g. Frocks"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  SKU Prefix *
+                  <span className="ml-1 font-normal text-gray-400">(used in product SKU — e.g. F → AC-F-S-0001)</span>
+                </label>
+                <input
+                  value={form.skuPrefix}
+                  onChange={e => setForm(f => ({ ...f, skuPrefix: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5) }))}
+                  className={inputCls}
+                  placeholder="e.g. F"
+                  maxLength={5}
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
@@ -72,7 +94,7 @@ export default function CategoriesPage() {
                 value={form.description}
                 onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                 rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                className={inputCls}
                 placeholder="Optional description"
               />
             </div>
@@ -101,7 +123,18 @@ export default function CategoriesPage() {
                 <Tag className="w-4 h-4 text-gray-500" />
               </div>
               <div>
-                <p className="font-medium text-gray-900">{cat.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-gray-900">{cat.name}</p>
+                  {cat.skuPrefix ? (
+                    <span className="px-2 py-0.5 bg-gray-900 text-white text-[10px] font-bold rounded tracking-widest">
+                      AC-{cat.skuPrefix}-…
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded">
+                      No SKU prefix
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-gray-400">
                   {cat._count?.products ?? 0} products
                   {cat.description ? ` · ${cat.description}` : ''}

@@ -7,7 +7,7 @@ import { slugify } from '@/lib/utils'
 import { Plus, Trash2, Upload, X } from 'lucide-react'
 
 interface Collection { id: string; name: string }
-interface Category { id: string; name: string }
+interface Category { id: string; name: string; skuPrefix?: string | null }
 interface SizeGuide { id: string; name: string; unit: string; columns: string[]; rows: { size: string; values: string[] }[] }
 interface SizeRow { size: string; stock: number }
 interface ImageRow { url: string; order: number }
@@ -65,10 +65,10 @@ export default function SingleProductForm({ initial, id, collections }: {
     setSkuLoading(true)
     try {
       const cat = categories.find(c => c.id === catId)
-      const catLetter = cat ? cat.name[0].toUpperCase() : 'X'
+      const catPrefix = cat?.skuPrefix || cat?.name[0].toUpperCase() || 'X'
       const res = await adminFetch('/api/products/next-sku-number')
       const { padded } = res.data
-      set('itemCode', `AC-${catLetter}-S-${padded}`)
+      set('itemCode', `AC-${catPrefix}-S-${padded}`)
     } catch { /* keep existing */ }
     setSkuLoading(false)
   }

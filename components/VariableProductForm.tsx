@@ -7,7 +7,7 @@ import { slugify } from '@/lib/utils'
 import { Plus, Trash2, Upload, X } from 'lucide-react'
 
 interface Collection { id: string; name: string }
-interface Category { id: string; name: string }
+interface Category { id: string; name: string; skuPrefix?: string | null }
 interface SizeGuide { id: string; name: string; unit: string; columns: string[]; rows: { size: string; values: string[] }[] }
 interface SizeRow { size: string; stock: number }
 interface ColorVariant {
@@ -77,26 +77,28 @@ export default function VariableProductForm({ initial, id, collections, initialV
     return `AC-${catLetter}-${colorLetter}-${res.data.padded}`
   }
 
+  const getCatPrefix = (catId: string) => {
+    const cat = categories.find(c => c.id === catId)
+    return cat?.skuPrefix || cat?.name[0].toUpperCase() || 'X'
+  }
+
   const handleCategoryChange = async (catId: string) => {
     set('categoryId', catId)
     if (!catId || variants.length === 0) return
-    const cat = categories.find(c => c.id === catId)
-    const catLetter = cat ? cat.name[0].toUpperCase() : 'X'
-    // Rebuild SKUs for all existing variants
+    const catPrefix = getCatPrefix(catId)
     const updated = await Promise.all(variants.map(async (v) => ({
       ...v,
-      sku: await buildSku(catLetter, v.colorHex),
+      sku: await buildSku(catPrefix, v.colorHex),
     })))
     setVariants(updated)
   }
 
   const addVariant = async () => {
-    const cat = categories.find(c => c.id === form.categoryId)
-    const catLetter = cat ? cat.name[0].toUpperCase() : 'X'
+    const catPrefix = getCatPrefix(form.categoryId)
     const newVariant: ColorVariant = { colorHex: '#000000', sku: '', skuLoading: true, images: [], sizes: [] }
     setVariants(prev => [...prev, newVariant])
     try {
-      const sku = await buildSku(catLetter, '#000000')
+      const sku = await buildSku(catPrefix, '#000000')
       setVariants(prev => prev.map((v, i) => i === prev.length - 1 ? { ...v, sku, skuLoading: false } : v))
     } catch {
       setVariants(prev => prev.map((v, i) => i === prev.length - 1 ? { ...v, skuLoading: false } : v))
@@ -108,10 +110,9 @@ export default function VariableProductForm({ initial, id, collections, initialV
 
   const handleColorChange = async (vi: number, hex: string) => {
     updateVariant(vi, { colorHex: hex, skuLoading: true })
-    const cat = categories.find(c => c.id === form.categoryId)
-    const catLetter = cat ? cat.name[0].toUpperCase() : 'X'
+    const catPrefix = getCatPrefix(form.categoryId)
     try {
-      const sku = await buildSku(catLetter, hex)
+      const sku = await buildSku(catPrefix, hex)
       setVariants(prev => prev.map((v, i) => i === vi ? { ...v, colorHex: hex, sku, skuLoading: false } : v))
     } catch {
       setVariants(prev => prev.map((v, i) => i === vi ? { ...v, colorHex: hex, skuLoading: false } : v))
