@@ -6,7 +6,7 @@ import { adminFetch } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
 
-interface Product { id: string; name: string; slug: string; itemCode?: string | null; productType?: string; price: number; status: string; featured: boolean; images: { url: string }[]; sizes: { size: string; stock: number }[]; colorVariants?: { sizes: { stock: number }[] }[] }
+interface Product { id: string; name: string; slug: string; itemCode?: string | null; productType?: string; price: number; status: string; featured: boolean; images: { url: string }[]; sizes: { size: string; stock: number }[]; colorVariants?: { images?: { url: string; order: number }[]; sizes: { stock: number }[] }[] }
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -68,7 +68,12 @@ export default function ProductsPage() {
                 <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
-                      {p.images[0] ? <Image src={p.images[0].url} alt={p.name} width={40} height={40} className="w-10 h-10 rounded-lg object-cover bg-gray-100" /> : <div className="w-10 h-10 rounded-lg bg-gray-100" />}
+                      {(() => {
+                        const imgUrl = p.images[0]?.url ?? p.colorVariants?.[0]?.images?.sort((a, b) => a.order - b.order)?.[0]?.url
+                        return imgUrl
+                          ? <Image src={imgUrl} alt={p.name} width={40} height={40} className="w-10 h-10 rounded-lg object-cover bg-gray-100" />
+                          : <div className="w-10 h-10 rounded-lg bg-gray-100" />
+                      })()}
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-gray-900">{p.name}</p>

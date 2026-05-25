@@ -49,9 +49,28 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const search = searchParams.get('search') ?? ''
   const status = searchParams.get('status') ?? ''
+
+  // For variable products, SKUs live inside the colorVariants JSON array.
+  // Find their IDs via a text cast so we can include them in the OR filter.
+  let variantSkuIds: string[] = []
+  if (search) {
+    const rows = await db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "Product"
+      WHERE "productType" = 'variable'
+      AND CAST("colorVariants" AS TEXT) ILIKE ${'%' + search + '%'}
+    `
+    variantSkuIds = rows.map(r => r.id)
+  }
+
   const products = await db.product.findMany({
     where: {
-      ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { itemCode: { contains: search, mode: 'insensitive' } }] } : {}),
+      ...(search ? {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { itemCode: { contains: search, mode: 'insensitive' } },
+          ...(variantSkuIds.length ? [{ id: { in: variantSkuIds } }] : []),
+        ],
+      } : {}),
       ...(status ? { status } : {}),
     },
     include: {
