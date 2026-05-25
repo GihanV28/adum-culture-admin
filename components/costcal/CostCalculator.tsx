@@ -40,7 +40,7 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
 
   const filteredFabrics = fabrics.filter(f => f.name.toLowerCase().includes(fabricSearch.toLowerCase()))
 
-  const baseFabricCost = selectedFabric && pieces ? selectedFabric.cost / Number(pieces) : 0
+  const baseFabricCost = selectedFabric && pieces ? selectedFabric.totalCost / Number(pieces) : 0
   const otherCostsTotal = otherCosts.reduce((s, c) => s + c.amount, 0)
   const totalProductionCost = baseFabricCost + otherCostsTotal
 
@@ -133,7 +133,7 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
                       <button key={f.id} onClick={() => { setSelectedFabric(f); setFabricDropdown(false); setFabricSearch('') }}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">
                         <span className="font-medium">{f.name}</span>
-                        <span className="text-gray-400 ml-2">LKR {f.cost.toLocaleString()}</span>
+                        <span className="text-gray-400 ml-2">LKR {f.totalCost.toLocaleString()}</span>
                       </button>
                     ))}
                     {filteredFabrics.length === 0 && <p className="px-3 py-2 text-sm text-gray-400">No fabrics found</p>}
