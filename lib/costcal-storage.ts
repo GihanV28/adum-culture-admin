@@ -6,9 +6,15 @@ const costingStore = localforage.createInstance({ name: 'cost-calculator', store
 export interface Fabric {
   id: string
   name: string
-  cost: number
+  buyingDate: string            // ISO date string (YYYY-MM-DD)
+  supplierName: string          // required
+  supplierMobile?: string       // optional
+  description?: string          // optional
+  costPerUnit: number           // cost per single unit (LKR)
   quantity?: number
   unit?: 'Yards' | 'KG' | 'Pieces' | 'Rolls'
+  estimatedPieces?: number      // forecasted finished garments
+  totalCost: number             // costPerUnit × quantity (or costPerUnit if no qty)
   image?: string
   createdAt: number
 }

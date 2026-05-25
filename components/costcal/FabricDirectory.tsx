@@ -1,39 +1,96 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
-import { Plus, Pencil, Trash2, X, Check, ImageIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, ImageIcon, Package, User, Phone, CalendarDays, Shirt } from 'lucide-react'
 import { getFabrics, addFabric, updateFabric, deleteFabric, type Fabric } from '@/lib/costcal-storage'
 
 const UNITS = ['Yards', 'KG', 'Pieces', 'Rolls'] as const
 
-const emptyForm = { name: '', cost: '', quantity: '', unit: 'Yards' as Fabric['unit'], image: '' }
+const today = () => new Date().toISOString().split('T')[0]
+
+const emptyForm = {
+  name: '',
+  buyingDate: today(),
+  supplierName: '',
+  supplierMobile: '',
+  description: '',
+  costPerUnit: '',
+  quantity: '',
+  unit: 'Yards' as Fabric['unit'],
+  estimatedPieces: '',
+  image: '',
+}
+
+type FormState = typeof emptyForm
+
+function computeTotal(costPerUnit: string, quantity: string) {
+  const c = parseFloat(costPerUnit)
+  const q = parseFloat(quantity)
+  if (isNaN(c)) return null
+  if (isNaN(q) || q === 0) return c
+  return c * q
+}
 
 export default function FabricDirectory() {
   const [fabrics, setFabrics] = useState<Fabric[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = async () => setFabrics(await getFabrics())
   useEffect(() => { load() }, [])
 
+  const set = (patch: Partial<FormState>) => setForm(f => ({ ...f, ...patch }))
+
   const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = ev => setForm(f => ({ ...f, image: ev.target?.result as string }))
+    reader.onload = ev => set({ image: ev.target?.result as string })
     reader.readAsDataURL(file)
   }
 
   const openAdd = () => { setForm(emptyForm); setEditId(null); setShowForm(true) }
-  const openEdit = (f: Fabric) => { setForm({ name: f.name, cost: String(f.cost), quantity: String(f.quantity ?? ''), unit: f.unit ?? 'Yards', image: f.image ?? '' }); setEditId(f.id); setShowForm(true) }
+
+  const openEdit = (f: Fabric) => {
+    setForm({
+      name: f.name,
+      buyingDate: f.buyingDate ?? '',
+      supplierName: f.supplierName ?? '',
+      supplierMobile: f.supplierMobile ?? '',
+      description: f.description ?? '',
+      costPerUnit: String(f.costPerUnit ?? ''),
+      quantity: String(f.quantity ?? ''),
+      unit: f.unit ?? 'Yards',
+      estimatedPieces: String(f.estimatedPieces ?? ''),
+      image: f.image ?? '',
+    })
+    setEditId(f.id)
+    setShowForm(true)
+  }
+
   const cancel = () => { setShowForm(false); setEditId(null); setForm(emptyForm) }
 
   const save = async () => {
-    if (!form.name || !form.cost) return
+    if (!form.name || !form.costPerUnit || !form.supplierName) return
     setSaving(true)
-    const data = { name: form.name, cost: Number(form.cost), quantity: form.quantity ? Number(form.quantity) : undefined, unit: form.unit, image: form.image || undefined }
+    const costPerUnit = parseFloat(form.costPerUnit)
+    const quantity = form.quantity ? parseFloat(form.quantity) : undefined
+    const totalCost = quantity ? costPerUnit * quantity : costPerUnit
+    const data: Omit<Fabric, 'id' | 'createdAt'> = {
+      name: form.name,
+      buyingDate: form.buyingDate,
+      supplierName: form.supplierName,
+      supplierMobile: form.supplierMobile || undefined,
+      description: form.description || undefined,
+      costPerUnit,
+      quantity,
+      unit: form.unit,
+      estimatedPieces: form.estimatedPieces ? parseFloat(form.estimatedPieces) : undefined,
+      totalCost,
+      image: form.image || undefined,
+    }
     if (editId) await updateFabric(editId, data)
     else await addFabric(data)
     await load(); cancel(); setSaving(false)
@@ -45,6 +102,15 @@ export default function FabricDirectory() {
   }
 
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
+  const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
+
+  const total = computeTotal(form.costPerUnit, form.quantity)
+
+  const formatDate = (d: string) => {
+    if (!d) return '—'
+    try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
+    catch { return d }
+  }
 
   return (
     <div>
@@ -61,36 +127,82 @@ export default function FabricDirectory() {
       {/* Form */}
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-5">
             <h3 className="font-semibold text-gray-900">{editId ? 'Edit Fabric' : 'New Fabric'}</h3>
             <button onClick={cancel} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Fabric Name / SKU *</label>
-              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="e.g. Cotton Twill #4" />
-            </div>
+
+          <div className="space-y-4">
+            {/* Fabric Name */}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Total Cost (LKR) *</label>
-              <input type="number" value={form.cost} onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} className={inputCls} placeholder="0.00" />
+              <label className={labelCls}>Fabric Name / SKU *</label>
+              <input value={form.name} onChange={e => set({ name: e.target.value })} className={inputCls} placeholder="e.g. Cotton Twill #4" />
             </div>
+
+            {/* Buying Date */}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
-              <div className="flex gap-2">
-                <input type="number" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} className={inputCls} placeholder="0" />
-                <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value as Fabric['unit'] }))} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black">
-                  {UNITS.map(u => <option key={u}>{u}</option>)}
-                </select>
+              <label className={labelCls}>Buying Date *</label>
+              <input type="date" value={form.buyingDate} onChange={e => set({ buyingDate: e.target.value })} className={inputCls} />
+            </div>
+
+            {/* Supplier Name + Mobile */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Supplier Name *</label>
+                <input value={form.supplierName} onChange={e => set({ supplierName: e.target.value })} className={inputCls} placeholder="e.g. Textile Plus" />
+              </div>
+              <div>
+                <label className={labelCls}>Supplier Mobile <span className="font-normal text-gray-400">(optional)</span></label>
+                <input type="tel" value={form.supplierMobile} onChange={e => set({ supplierMobile: e.target.value })} className={inputCls} placeholder="+94 77 000 0000" />
               </div>
             </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Sample Image (optional)</label>
+
+            {/* Description */}
+            <div>
+              <label className={labelCls}>Description <span className="font-normal text-gray-400">(optional)</span></label>
+              <textarea value={form.description} onChange={e => set({ description: e.target.value })} rows={2} className={inputCls} placeholder="Fabric details, color, weave type…" />
+            </div>
+
+            {/* Cost per unit + Quantity */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Cost per Unit (LKR) *</label>
+                <input type="number" min={0} value={form.costPerUnit} onChange={e => set({ costPerUnit: e.target.value })} className={inputCls} placeholder="0.00" />
+              </div>
+              <div>
+                <label className={labelCls}>Quantity *</label>
+                <div className="flex gap-2">
+                  <input type="number" min={0} value={form.quantity} onChange={e => set({ quantity: e.target.value })} className={inputCls} placeholder="0" />
+                  <select value={form.unit} onChange={e => set({ unit: e.target.value as Fabric['unit'] })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black shrink-0">
+                    {UNITS.map(u => <option key={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Auto-calculated total */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-center justify-between">
+              <span className="text-sm text-gray-500 font-medium">Total Cost (auto)</span>
+              <span className="text-lg font-bold text-gray-900">
+                {total !== null ? `LKR ${total.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+              </span>
+            </div>
+
+            {/* Estimated Pieces */}
+            <div>
+              <label className={labelCls}>Estimated Pieces Count <span className="font-normal text-gray-400">(forecasted finished garments)</span></label>
+              <input type="number" min={0} value={form.estimatedPieces} onChange={e => set({ estimatedPieces: e.target.value })} className={inputCls} placeholder="e.g. 25" />
+            </div>
+
+            {/* Image */}
+            <div>
+              <label className={labelCls}>Sample Image <span className="font-normal text-gray-400">(optional)</span></label>
               <div className="flex items-center gap-3">
                 {form.image ? (
                   <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={form.image} alt="" className="w-full h-full object-cover" />
-                    <button onClick={() => setForm(f => ({ ...f, image: '' }))} className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center"><X className="w-2.5 h-2.5" /></button>
+                    <button onClick={() => set({ image: '' })} className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center"><X className="w-2.5 h-2.5" /></button>
                   </div>
                 ) : (
                   <div className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 shrink-0">
@@ -102,9 +214,14 @@ export default function FabricDirectory() {
               </div>
             </div>
           </div>
-          <div className="flex gap-2 mt-4 justify-end">
+
+          <div className="flex gap-2 mt-5 pt-4 border-t border-gray-100 justify-end">
             <button onClick={cancel} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-            <button onClick={save} disabled={!form.name || !form.cost || saving} className="flex items-center gap-2 px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-40">
+            <button
+              onClick={save}
+              disabled={!form.name || !form.costPerUnit || !form.supplierName || saving}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-40"
+            >
               <Check className="w-4 h-4" /> {saving ? 'Saving…' : 'Save Fabric'}
             </button>
           </div>
@@ -113,34 +230,83 @@ export default function FabricDirectory() {
 
       {/* Grid */}
       {fabrics.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-16 text-center text-gray-400 text-sm">No fabrics yet. Add your first fabric to get started.</div>
+        <div className="bg-white rounded-xl border border-gray-200 p-16 text-center text-gray-400 text-sm">
+          No fabrics yet. Add your first fabric to get started.
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {fabrics.map(f => (
-            <div key={f.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="h-32 bg-gray-100 flex items-center justify-center overflow-hidden">
-                {f.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={f.image} alt={f.name} className="w-full h-full object-cover" />
-                ) : (
-                  <ImageIcon className="w-8 h-8 text-gray-300" />
-                )}
-              </div>
-              <div className="p-4">
-                <p className="font-semibold text-gray-900 truncate">{f.name}</p>
-                <p className="text-lg font-bold text-gray-900 mt-1">LKR {f.cost.toLocaleString()}</p>
-                {f.quantity && <p className="text-xs text-gray-400 mt-0.5">{f.quantity} {f.unit}</p>}
-                <div className="flex gap-2 mt-3">
-                  <button onClick={() => openEdit(f)} className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs border border-gray-300 rounded-lg hover:bg-gray-50">
-                    <Pencil className="w-3 h-3" /> Edit
-                  </button>
-                  <button onClick={() => del(f.id)} className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
-                    <Trash2 className="w-3 h-3" /> Delete
-                  </button>
+          {fabrics.map(f => {
+            const displayTotal = f.totalCost ?? (f.costPerUnit ?? (f as {cost?: number}).cost ?? 0)
+            const costPerUnit = f.costPerUnit ?? (f as {cost?: number}).cost
+            return (
+              <div key={f.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="h-32 bg-gray-100 flex items-center justify-center overflow-hidden">
+                  {f.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={f.image} alt={f.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-gray-300" />
+                  )}
+                </div>
+                <div className="p-4 space-y-2">
+                  <p className="font-semibold text-gray-900 truncate">{f.name}</p>
+
+                  {f.buyingDate && (
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <CalendarDays className="w-3 h-3 shrink-0" />
+                      {formatDate(f.buyingDate)}
+                    </div>
+                  )}
+
+                  {f.supplierName && (
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500 truncate">
+                      <User className="w-3 h-3 shrink-0" />
+                      {f.supplierName}
+                      {f.supplierMobile && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{f.supplierMobile}</span>}
+                    </div>
+                  )}
+
+                  {f.description && (
+                    <p className="text-xs text-gray-400 line-clamp-2">{f.description}</p>
+                  )}
+
+                  <div className="pt-1 border-t border-gray-100 space-y-1">
+                    {costPerUnit !== undefined && (
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span className="flex items-center gap-1"><Package className="w-3 h-3" /> Per unit</span>
+                        <span className="font-medium">LKR {costPerUnit.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {f.quantity && (
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <span>Qty</span>
+                        <span>{f.quantity} {f.unit}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Total</span>
+                      <span className="text-base font-bold text-gray-900">LKR {displayTotal.toLocaleString()}</span>
+                    </div>
+                    {f.estimatedPieces && (
+                      <div className="flex items-center justify-between text-xs text-gray-500 mt-0.5">
+                        <span className="flex items-center gap-1"><Shirt className="w-3 h-3" /> Est. pieces</span>
+                        <span className="font-medium text-gray-700">{f.estimatedPieces}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button onClick={() => openEdit(f)} className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs border border-gray-300 rounded-lg hover:bg-gray-50">
+                      <Pencil className="w-3 h-3" /> Edit
+                    </button>
+                    <button onClick={() => del(f.id)} className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
