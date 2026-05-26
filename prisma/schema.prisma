@@ -622,3 +622,32 @@ model NewsletterSubscriber {
   email        String   @unique
   subscribedAt DateTime @default(now())
 }
+
+model CostCalFabric {
+  id              String           @id @default(cuid())
+  name            String
+  buyingDate      String
+  supplierName    String
+  supplierMobile  String?
+  description     String?
+  costPerUnit     Float
+  quantity        Float?
+  unit            String?
+  estimatedPieces Float?
+  totalCost       Float
+  image           String?
+  createdAt       DateTime         @default(now())
+  costings        CostCalCosting[]
+}
+
+model CostCalCosting {
+  id                  String         @id @default(cuid())
+  code                String
+  image               String?
+  fabricId            String?
+  totalProductionCost Float
+  netProfit           Float
+  sellingPrice        Float
+  createdAt           DateTime       @default(now())
+  fabric              CostCalFabric? @relation(fields: [fabricId], references: [id])
+}
