@@ -10,7 +10,7 @@ export interface Fabric {
   unit?: 'Yards' | 'KG' | 'Pieces' | 'Rolls'
   estimatedPieces?: number
   totalCost: number
-  image?: string
+  images?: string[]
   createdAt: number
 }
 

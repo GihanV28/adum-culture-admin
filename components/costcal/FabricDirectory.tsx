@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, X, Check, ImageIcon, Package, User, Phone, Calend
 import { getFabrics, addFabric, updateFabric, deleteFabric, type Fabric } from '@/lib/costcal-storage'
 
 const UNITS = ['Yards', 'KG', 'Pieces', 'Rolls'] as const
+const MAX_IMAGES = 3
 
 const today = () => new Date().toISOString().split('T')[0]
 
@@ -17,7 +18,7 @@ const emptyForm = {
   quantity: '',
   unit: 'Yards' as Fabric['unit'],
   estimatedPieces: '',
-  image: '',
+  images: [] as string[],
 }
 
 type FormState = typeof emptyForm
@@ -36,6 +37,7 @@ export default function FabricDirectory() {
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [pendingSlot, setPendingSlot] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = async () => setFabrics(await getFabrics())
@@ -43,12 +45,27 @@ export default function FabricDirectory() {
 
   const set = (patch: Partial<FormState>) => setForm(f => ({ ...f, ...patch }))
 
+  const openImagePicker = (slot: number) => {
+    setPendingSlot(slot)
+    if (fileRef.current) { fileRef.current.value = ''; fileRef.current.click() }
+  }
+
   const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = ev => set({ image: ev.target?.result as string })
+    reader.onload = ev => {
+      setForm(f => {
+        const imgs = [...f.images]
+        imgs[pendingSlot] = ev.target?.result as string
+        return { ...f, images: imgs }
+      })
+    }
     reader.readAsDataURL(file)
+  }
+
+  const removeImage = (i: number) => {
+    setForm(f => ({ ...f, images: f.images.filter((_, idx) => idx !== i) }))
   }
 
   const openAdd = () => { setForm(emptyForm); setEditId(null); setShowForm(true) }
@@ -64,7 +81,7 @@ export default function FabricDirectory() {
       quantity: String(f.quantity ?? ''),
       unit: f.unit ?? 'Yards',
       estimatedPieces: String(f.estimatedPieces ?? ''),
-      image: f.image ?? '',
+      images: f.images ?? [],
     })
     setEditId(f.id)
     setShowForm(true)
@@ -89,7 +106,7 @@ export default function FabricDirectory() {
       unit: form.unit,
       estimatedPieces: form.estimatedPieces ? parseFloat(form.estimatedPieces) : undefined,
       totalCost,
-      image: form.image || undefined,
+      images: form.images.length > 0 ? form.images : undefined,
     }
     if (editId) await updateFabric(editId, data)
     else await addFabric(data)
@@ -194,24 +211,56 @@ export default function FabricDirectory() {
               <input type="number" min={0} value={form.estimatedPieces} onChange={e => set({ estimatedPieces: e.target.value })} className={inputCls} placeholder="e.g. 25" />
             </div>
 
-            {/* Image */}
+            {/* Images — up to 3 */}
             <div>
-              <label className={labelCls}>Sample Image <span className="font-normal text-gray-400">(optional)</span></label>
-              <div className="flex items-center gap-3">
-                {form.image ? (
-                  <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200 shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={form.image} alt="" className="w-full h-full object-cover" />
-                    <button onClick={() => set({ image: '' })} className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center"><X className="w-2.5 h-2.5" /></button>
-                  </div>
-                ) : (
-                  <div className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 shrink-0">
-                    <ImageIcon className="w-5 h-5" />
-                  </div>
-                )}
-                <button onClick={() => fileRef.current?.click()} className="text-sm text-gray-600 border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50">Choose image</button>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImage} />
+              <label className={labelCls}>
+                Sample Images <span className="font-normal text-gray-400">(optional, up to {MAX_IMAGES})</span>
+              </label>
+              <div className="flex gap-3 flex-wrap">
+                {Array.from({ length: MAX_IMAGES }).map((_, i) => {
+                  const src = form.images[i]
+                  const isNextSlot = !src && form.images.length === i
+
+                  if (src) {
+                    return (
+                      <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt="" className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => removeImage(i)}
+                          className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )
+                  }
+
+                  if (isNextSlot) {
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => openImagePicker(i)}
+                        className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-gray-400 hover:bg-gray-50 shrink-0 transition-colors"
+                      >
+                        <Plus className="w-5 h-5" />
+                        <span className="text-[10px]">Add</span>
+                      </button>
+                    )
+                  }
+
+                  return (
+                    <div key={i} className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300 shrink-0">
+                      <ImageIcon className="w-5 h-5" />
+                    </div>
+                  )
+                })}
               </div>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImage} />
+              {form.images.length > 0 && (
+                <p className="text-xs text-gray-400 mt-1.5">{form.images.length} of {MAX_IMAGES} images added</p>
+              )}
             </div>
           </div>
 
@@ -238,16 +287,25 @@ export default function FabricDirectory() {
           {fabrics.map(f => {
             const displayTotal = f.totalCost ?? (f.costPerUnit ?? (f as {cost?: number}).cost ?? 0)
             const costPerUnit = f.costPerUnit ?? (f as {cost?: number}).cost
+            const thumbUrl = f.images?.[0]
+            const extraCount = (f.images?.length ?? 0) - 1
             return (
               <div key={f.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="h-32 bg-gray-100 flex items-center justify-center overflow-hidden">
-                  {f.image ? (
+                {/* Thumbnail */}
+                <div className="relative h-32 bg-gray-100 flex items-center justify-center overflow-hidden">
+                  {thumbUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={f.image} alt={f.name} className="w-full h-full object-cover" />
+                    <img src={thumbUrl} alt={f.name} className="w-full h-full object-cover" />
                   ) : (
                     <ImageIcon className="w-8 h-8 text-gray-300" />
                   )}
+                  {extraCount > 0 && (
+                    <span className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                      +{extraCount} photo{extraCount > 1 ? 's' : ''}
+                    </span>
+                  )}
                 </div>
+
                 <div className="p-4 space-y-2">
                   <p className="font-semibold text-gray-900 truncate">{f.name}</p>
 

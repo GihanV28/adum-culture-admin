@@ -9,10 +9,10 @@ function serialize(f: { createdAt: Date; [key: string]: unknown }) {
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   if (!getAdminFromRequest(req)) return NextResponse.json({ success: false }, { status: 401 })
   const body = await req.json()
-  const { name, buyingDate, supplierName, supplierMobile, description, costPerUnit, quantity, unit, estimatedPieces, totalCost, image } = body
+  const { name, buyingDate, supplierName, supplierMobile, description, costPerUnit, quantity, unit, estimatedPieces, totalCost, images } = body
   const fabric = await db.costCalFabric.update({
     where: { id: params.id },
-    data: { name, buyingDate, supplierName, supplierMobile: supplierMobile || null, description: description || null, costPerUnit, quantity: quantity ?? null, unit: unit || null, estimatedPieces: estimatedPieces ?? null, totalCost, image: image || null },
+    data: { name, buyingDate, supplierName, supplierMobile: supplierMobile || null, description: description || null, costPerUnit, quantity: quantity ?? null, unit: unit || null, estimatedPieces: estimatedPieces ?? null, totalCost, images: images?.length ? images : null },
   })
   return NextResponse.json({ success: true, data: { fabric: serialize(fabric) } })
 }

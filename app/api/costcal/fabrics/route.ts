@@ -15,12 +15,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!getAdminFromRequest(req)) return NextResponse.json({ success: false }, { status: 401 })
   const body = await req.json()
-  const { name, buyingDate, supplierName, supplierMobile, description, costPerUnit, quantity, unit, estimatedPieces, totalCost, image } = body
+  const { name, buyingDate, supplierName, supplierMobile, description, costPerUnit, quantity, unit, estimatedPieces, totalCost, images } = body
   if (!name || !supplierName || costPerUnit == null || totalCost == null) {
     return NextResponse.json({ success: false, message: 'Missing required fields' }, { status: 400 })
   }
   const fabric = await db.costCalFabric.create({
-    data: { name, buyingDate, supplierName, supplierMobile: supplierMobile || null, description: description || null, costPerUnit, quantity: quantity ?? null, unit: unit || null, estimatedPieces: estimatedPieces ?? null, totalCost, image: image || null },
+    data: { name, buyingDate, supplierName, supplierMobile: supplierMobile || null, description: description || null, costPerUnit, quantity: quantity ?? null, unit: unit || null, estimatedPieces: estimatedPieces ?? null, totalCost, images: images?.length ? images : null },
   })
   return NextResponse.json({ success: true, data: { fabric: serialize(fabric) } }, { status: 201 })
 }

@@ -635,7 +635,7 @@ model CostCalFabric {
   unit            String?
   estimatedPieces Float?
   totalCost       Float
-  image           String?
+  images          Json?
   createdAt       DateTime         @default(now())
   costings        CostCalCosting[]
 }
