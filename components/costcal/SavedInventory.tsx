@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Trash2, ImageIcon, Pencil, Check, X, ChevronDown } from 'lucide-react'
 import { adminFetch } from '@/lib/api'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 interface ProductInfo {
   id: string
@@ -114,7 +115,33 @@ export default function SavedInventory({ onEditInCalculator }: { onEditInCalcula
     load()
   }
 
-  if (loading) return <div className="p-12 text-center text-gray-400 text-sm">Loading…</div>
+  if (loading) return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="overflow-x-auto">
+        <div className="min-w-[700px]">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-4 border-b border-gray-100 last:border-0">
+              <Skeleton className="w-10 h-10 rounded-lg shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              <Skeleton className="h-4 w-24 shrink-0" />
+              <Skeleton className="h-4 w-24 shrink-0" />
+              <Skeleton className="h-8 w-28 rounded shrink-0" />
+              <Skeleton className="h-8 w-28 rounded shrink-0" />
+              <Skeleton className="h-6 w-12 rounded-full shrink-0" />
+              <Skeleton className="h-6 w-20 rounded-full shrink-0" />
+              <div className="flex gap-1 shrink-0">
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <Skeleton className="h-8 w-8 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 
   if (costings.length === 0) {
     return (

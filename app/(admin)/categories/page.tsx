@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { adminFetch } from '@/lib/api'
 import { Plus, Edit, Trash2, Tag } from 'lucide-react'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 interface Category { id: string; name: string; skuPrefix?: string | null; description?: string; _count?: { products: number } }
 
@@ -48,22 +49,22 @@ export default function CategoriesPage() {
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 sm:p-8">
+      <div className="flex items-center justify-between mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Categories</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Categories</h1>
           <p className="text-sm text-gray-500 mt-1">Organize products for the ORM inventory system</p>
         </div>
-        <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800">
-          <Plus className="w-4 h-4" /> New Category
+        <button onClick={openNew} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 shrink-0">
+          <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New Category</span><span className="sm:hidden">New</span>
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-6">
           <h2 className="font-semibold text-gray-900 mb-4">{editing ? 'Edit Category' : 'New Category'}</h2>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Name *</label>
                 <input
@@ -77,7 +78,7 @@ export default function CategoriesPage() {
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   SKU Prefix *
-                  <span className="ml-1 font-normal text-gray-400">(used in product SKU — e.g. F → AC-F-S-0001)</span>
+                  <span className="ml-1 font-normal text-gray-400">(e.g. F → AC-F-S-0001)</span>
                 </label>
                 <input
                   value={form.skuPrefix}
@@ -113,24 +114,36 @@ export default function CategoriesPage() {
 
       <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
         {loading ? (
-          <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
+          <div>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-100 last:border-0">
+                <Skeleton className="w-8 h-8 rounded-lg shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <Skeleton className="h-8 w-8 rounded-lg" />
+              </div>
+            ))}
+          </div>
         ) : categories.length === 0 ? (
           <div className="p-8 text-center text-gray-400 text-sm">No categories yet. Create one to start organizing your inventory.</div>
         ) : categories.map(cat => (
-          <div key={cat.id} className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+          <div key={cat.id} className="flex items-center justify-between px-4 sm:px-6 py-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
                 <Tag className="w-4 h-4 text-gray-500" />
               </div>
-              <div>
-                <div className="flex items-center gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-medium text-gray-900">{cat.name}</p>
                   {cat.skuPrefix ? (
-                    <span className="px-2 py-0.5 bg-gray-900 text-white text-[10px] font-bold rounded tracking-widest">
+                    <span className="px-2 py-0.5 bg-gray-900 text-white text-[10px] font-bold rounded tracking-widest shrink-0">
                       AC-{cat.skuPrefix}-…
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded">
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded shrink-0">
                       No SKU prefix
                     </span>
                   )}
@@ -141,7 +154,7 @@ export default function CategoriesPage() {
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 shrink-0">
               <button onClick={() => openEdit(cat)} className="p-1.5 text-gray-400 hover:text-gray-700 rounded">
                 <Edit className="w-4 h-4" />
               </button>

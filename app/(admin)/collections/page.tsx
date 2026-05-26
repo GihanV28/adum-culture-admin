@@ -21,6 +21,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 interface Collection { id: string; name: string; slug: string; description?: string; imageUrl?: string; published: boolean; order: number; _count: { products: number } }
 
@@ -90,7 +91,6 @@ function ReorderModal({ collections, onClose, onSaved }: { collections: Collecti
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col max-h-[80vh]">
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
             <h2 className="font-semibold text-gray-900">Change Collection Order</h2>
@@ -101,7 +101,6 @@ function ReorderModal({ collections, onClose, onSaved }: { collections: Collecti
           </button>
         </div>
 
-        {/* Sortable list */}
         <div className="flex-1 overflow-y-auto p-4">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={items.map(c => c.id)} strategy={verticalListSortingStrategy}>
@@ -110,7 +109,6 @@ function ReorderModal({ collections, onClose, onSaved }: { collections: Collecti
           </DndContext>
         </div>
 
-        {/* Footer */}
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
           <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">
             Cancel
@@ -127,6 +125,7 @@ function ReorderModal({ collections, onClose, onSaved }: { collections: Collecti
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function CollectionsPage() {
   const [collections, setCollections] = useState<Collection[]>([])
+  const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ name: '', slug: '', description: '', imageUrl: '', published: true })
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Partial<Collection>>({})
@@ -137,7 +136,10 @@ export default function CollectionsPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const editFileRef = useRef<HTMLInputElement>(null)
 
-  const load = () => adminFetch('/api/collections').then(d => setCollections(d.data.collections)).catch(console.error)
+  const load = () => {
+    setLoading(true)
+    adminFetch('/api/collections').then(d => { setCollections(d.data.collections); setLoading(false) }).catch(() => setLoading(false))
+  }
   useEffect(() => { load() }, [])
 
   const uploadImage = async (file: File, isEdit = false) => {
@@ -175,13 +177,13 @@ export default function CollectionsPage() {
   const inputCls = 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-8">Collections</h1>
+    <div className="p-4 sm:p-8">
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6 sm:mb-8">Collections</h1>
 
       {/* New Collection Form */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-6 space-y-4">
         <h2 className="font-semibold text-gray-900">New Collection</h2>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <input placeholder="Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value, slug: slugify(e.target.value) }))} className={inputCls} />
           <input placeholder="Slug" value={form.slug} onChange={e => setForm(f => ({ ...f, slug: e.target.value }))} className={inputCls} />
         </div>
@@ -221,10 +223,25 @@ export default function CollectionsPage() {
 
       {/* Collections List */}
       <div className="bg-white rounded-xl border border-gray-200">
-        {collections.length === 0 ? (
+        {loading ? (
+          <div>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 border-b border-gray-100 last:border-0">
+                <Skeleton className="w-12 h-12 rounded-lg shrink-0" />
+                <div className="flex-1 min-w-0 space-y-2">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-6 w-20 rounded-full hidden sm:block shrink-0" />
+                <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+                <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+              </div>
+            ))}
+          </div>
+        ) : collections.length === 0 ? (
           <div className="p-12 text-center text-gray-400 text-sm">No collections yet.</div>
         ) : collections.map(c => (
-          <div key={c.id} className="flex items-center gap-4 px-6 py-4 border-b border-gray-100 last:border-0">
+          <div key={c.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 border-b border-gray-100 last:border-0">
             {editId === c.id ? (
               <>
                 {/* Edit mode image */}
@@ -245,12 +262,12 @@ export default function CollectionsPage() {
                   )}
                   <input ref={editFileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], true)} />
                 </div>
-                <div className="flex-1 grid grid-cols-2 gap-2">
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />
                   <input value={editForm.slug ?? ''} onChange={e => setEditForm(f => ({ ...f, slug: e.target.value }))} className={inputCls} />
                 </div>
-                <button onClick={() => save(c.id)} className="p-1.5 rounded bg-green-50 text-green-600 hover:bg-green-100"><Check className="w-4 h-4" /></button>
-                <button onClick={() => setEditId(null)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
+                <button onClick={() => save(c.id)} className="p-1.5 rounded bg-green-50 text-green-600 hover:bg-green-100 shrink-0"><Check className="w-4 h-4" /></button>
+                <button onClick={() => setEditId(null)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 shrink-0"><X className="w-4 h-4" /></button>
               </>
             ) : (
               <>
@@ -260,16 +277,16 @@ export default function CollectionsPage() {
                     ? <Image src={c.imageUrl} alt={c.name} width={48} height={48} className="w-full h-full object-cover" />
                     : <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">No img</div>}
                 </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">{c.name}</p>
-                  <p className="text-xs text-gray-400">{c.slug} · {c._count.products} products</p>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{c.name}</p>
+                  <p className="text-xs text-gray-400 truncate">{c.slug} · {c._count.products} products</p>
                 </div>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${c.published ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 hidden sm:inline ${c.published ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                   {c.published ? 'Published' : 'Hidden'}
                 </span>
                 <button onClick={() => { setEditId(c.id); setEditForm({ name: c.name, slug: c.slug, imageUrl: c.imageUrl ?? '' }) }}
-                  className="p-1.5 rounded hover:bg-gray-100 text-gray-500"><Pencil className="w-4 h-4" /></button>
-                <button onClick={() => del(c.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                  className="p-1.5 rounded hover:bg-gray-100 text-gray-500 shrink-0"><Pencil className="w-4 h-4" /></button>
+                <button onClick={() => del(c.id)} className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 shrink-0"><Trash2 className="w-4 h-4" /></button>
               </>
             )}
           </div>

@@ -19,6 +19,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 interface Slide { id: string; order: number; alt: string; desktopImageUrl: string; mobileImageUrl: string; active: boolean }
 
@@ -118,6 +119,7 @@ function ReorderModal({ slides, onClose, onSaved }: { slides: Slide[]; onClose: 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function HeroSlidesPage() {
   const [slides, setSlides] = useState<Slide[]>([])
+  const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ alt: '', desktopImageUrl: '', mobileImageUrl: '', active: true })
   const [uploading, setUploading] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -125,7 +127,10 @@ export default function HeroSlidesPage() {
   const desktopRef = useRef<HTMLInputElement>(null)
   const mobileRef = useRef<HTMLInputElement>(null)
 
-  const load = () => adminFetch('/api/hero-slides').then(d => setSlides(d.data.slides)).catch(console.error)
+  const load = () => {
+    setLoading(true)
+    adminFetch('/api/hero-slides').then(d => { setSlides(d.data.slides); setLoading(false) }).catch(() => setLoading(false))
+  }
   useEffect(() => { load() }, [])
 
   const uploadImage = async (file: File, field: 'desktopImageUrl' | 'mobileImageUrl') => {
@@ -160,13 +165,13 @@ export default function HeroSlidesPage() {
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-8">Hero Slides</h1>
+    <div className="p-4 sm:p-8">
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6 sm:mb-8">Hero Slides</h1>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-6 space-y-4">
         <h2 className="font-semibold text-gray-900">Add New Slide</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">Alt Text *</label>
             <input value={form.alt} onChange={e => setForm(f => ({ ...f, alt: e.target.value }))} className={inputCls} placeholder="Description for accessibility" />
           </div>
@@ -212,16 +217,28 @@ export default function HeroSlidesPage() {
       </div>
 
       <div className="space-y-4">
-        {slides.length === 0 ? (
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
+              <Skeleton className="w-32 h-20 rounded-lg shrink-0" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-40" />
+              </div>
+              <Skeleton className="h-6 w-16 rounded-full hidden sm:block shrink-0" />
+              <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+              <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+            </div>
+          ))
+        ) : slides.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400 text-sm">No slides yet.</div>
         ) : slides.map(s => (
-          <div key={s.id} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
+          <div key={s.id} className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap sm:flex-nowrap items-center gap-4">
             <div className="w-32 h-20 rounded-lg overflow-hidden bg-gray-100 shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={s.desktopImageUrl} alt={s.alt} className="w-full h-full object-cover" />
             </div>
-            <div className="flex-1">
-              <p className="font-medium text-gray-900">{s.alt}</p>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 truncate">{s.alt}</p>
             </div>
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{s.active ? 'Active' : 'Hidden'}</span>
             <button onClick={() => toggle(s)} className="text-gray-400 hover:text-gray-700">

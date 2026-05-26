@@ -1,7 +1,8 @@
 'use client'
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, FolderOpen, ShoppingCart, Users, Tag, Mail, FileText, LogOut, Calculator, Image, Layers, Ruler } from 'lucide-react'
+import { LayoutDashboard, Package, FolderOpen, ShoppingCart, Users, Tag, Mail, FileText, LogOut, Calculator, Image, Layers, Ruler, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const nav = [
@@ -22,6 +23,7 @@ const nav = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const [open, setOpen] = useState(false)
 
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -29,11 +31,11 @@ export default function Sidebar() {
     router.push('/login')
   }
 
-  return (
-    <aside className="w-56 shrink-0 bg-gray-900 text-white min-h-screen flex flex-col">
-      <div className="px-4 py-5 border-b border-gray-800">
+  const navContent = (
+    <>
+      <div className="px-4 py-5 border-b border-gray-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-white rounded flex items-center justify-center">
+          <div className="w-7 h-7 bg-white rounded flex items-center justify-center shrink-0">
             <span className="text-black font-bold text-xs">AC</span>
           </div>
           <div>
@@ -41,13 +43,16 @@ export default function Sidebar() {
             <p className="text-xs text-gray-400 mt-0.5">Admin Panel</p>
           </div>
         </div>
+        <button onClick={() => setOpen(false)} className="md:hidden p-1 text-gray-400 hover:text-white">
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
         {nav.map(({ href, label, icon: Icon }) => {
           const active = href === '/' ? pathname === '/' : pathname.startsWith(href)
           return (
-            <Link key={href} href={href}
+            <Link key={href} href={href} onClick={() => setOpen(false)}
               className={cn('flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',
                 active ? 'bg-white text-gray-900 font-medium' : 'text-gray-400 hover:bg-gray-800 hover:text-white')}>
               <Icon className="w-4 h-4 shrink-0" />
@@ -63,6 +68,36 @@ export default function Sidebar() {
           <LogOut className="w-4 h-4" /> Sign Out
         </button>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-gray-900 text-white flex items-center justify-between px-4 border-b border-gray-800">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-white rounded flex items-center justify-center shrink-0">
+            <span className="text-black font-bold text-xs">AC</span>
+          </div>
+          <span className="text-sm font-semibold">Adum Culture</span>
+        </div>
+        <button onClick={() => setOpen(true)} className="p-1 text-gray-400 hover:text-white">
+          <Menu className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Backdrop */}
+      {open && (
+        <div className="md:hidden fixed inset-0 bg-black/60 z-40" onClick={() => setOpen(false)} />
+      )}
+
+      {/* Sidebar */}
+      <aside className={cn(
+        'fixed md:relative inset-y-0 left-0 z-50 w-56 shrink-0 bg-gray-900 text-white min-h-screen flex flex-col transition-transform duration-200',
+        open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+      )}>
+        {navContent}
+      </aside>
+    </>
   )
 }

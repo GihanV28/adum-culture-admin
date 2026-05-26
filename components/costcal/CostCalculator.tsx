@@ -260,7 +260,7 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
   const canSave = !!selectedProduct && !deductionsError && fabricEntries.length > 0 && !!pieces && Number(pieces) > 0
 
   return (
-    <div className="grid grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
       {/* Confirm replace dialog */}
       {confirmReplace && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
@@ -319,7 +319,7 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
       )}
 
       {/* LEFT: Inputs */}
-      <div className="col-span-2 space-y-5">
+      <div className="xl:col-span-2 space-y-5">
 
         {/* Section 1: Select Product */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">

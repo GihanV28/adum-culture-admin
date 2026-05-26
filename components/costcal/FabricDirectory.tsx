@@ -163,7 +163,7 @@ export default function FabricDirectory() {
             </div>
 
             {/* Supplier Name + Mobile */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Supplier Name *</label>
                 <input value={form.supplierName} onChange={e => set({ supplierName: e.target.value })} className={inputCls} placeholder="e.g. Textile Plus" />
@@ -181,7 +181,7 @@ export default function FabricDirectory() {
             </div>
 
             {/* Cost per unit + Quantity */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>Cost per Unit (LKR) *</label>
                 <input type="number" min={0} value={form.costPerUnit} onChange={e => set({ costPerUnit: e.target.value })} className={inputCls} placeholder="0.00" />

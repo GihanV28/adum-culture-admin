@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from 'react'
 import Image from 'next/image'
 import { adminFetch } from '@/lib/api'
 import { Save, Upload, X } from 'lucide-react'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 interface ContentBlock {
   id: string; key: string; title?: string; body?: string; imageUrl?: string
@@ -41,6 +42,7 @@ const CONTENT_KEYS = [
 
 export default function ContentPage() {
   const [blocks, setBlocks] = useState<Record<string, ContentBlock>>({})
+  const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<string | null>(null)
   const [form, setForm] = useState<Partial<ContentBlock>>({})
   const [contactData, setContactData] = useState<Record<string, string>>({ ...DEFAULT_CONTACT })
@@ -55,7 +57,8 @@ export default function ContentPage() {
       const map: Record<string, ContentBlock> = {}
       d.data.content.forEach((c: ContentBlock) => { map[c.key] = c })
       setBlocks(map)
-    }).catch(console.error)
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }, [])
 
   const openEdit = (key: string) => {
@@ -98,199 +101,213 @@ export default function ContentPage() {
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Page Content</h1>
-      <p className="text-sm text-gray-500 mb-8">Edit text and content for your website pages.</p>
+    <div className="p-4 sm:p-8">
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Page Content</h1>
+      <p className="text-sm text-gray-500 mb-6 sm:mb-8">Edit text and content for your website pages.</p>
 
-      <div className="space-y-3">
-        {CONTENT_KEYS.map(({ key, label, type, description }) => (
-          <div key={key} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            {/* Header row */}
-            <button onClick={() => openEdit(key)}
-              className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors text-left">
-              <div>
-                <span className="font-medium text-gray-900">{label}</span>
-                <span className="ml-3 text-xs text-gray-400">{description}</span>
+      {loading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 px-4 sm:px-6 py-4 flex items-center justify-between">
+              <div className="space-y-2 flex-1">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-56 hidden sm:block" />
               </div>
-              <span className="text-xs text-gray-400 shrink-0 ml-4">{editing === key ? '▲ Close' : '▼ Edit'}</span>
-            </button>
+              <Skeleton className="h-4 w-16 shrink-0" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {CONTENT_KEYS.map(({ key, label, type, description }) => (
+            <div key={key} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              {/* Header row */}
+              <button onClick={() => openEdit(key)}
+                className="w-full flex items-center justify-between px-4 sm:px-6 py-4 hover:bg-gray-50 transition-colors text-left">
+                <div className="min-w-0">
+                  <span className="font-medium text-gray-900">{label}</span>
+                  <span className="ml-3 text-xs text-gray-400 hidden sm:inline">{description}</span>
+                </div>
+                <span className="text-xs text-gray-400 shrink-0 ml-4">{editing === key ? '▲ Close' : '▼ Edit'}</span>
+              </button>
 
-            {editing === key && (
-              <div className="px-6 pb-6 border-t border-gray-100 pt-5 space-y-4">
+              {editing === key && (
+                <div className="px-4 sm:px-6 pb-6 border-t border-gray-100 pt-5 space-y-4">
 
-                {/* ── CONTACT type ── */}
-                {type === 'contact' && (
-                  <>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                      <textarea value={contactData.description} rows={2}
-                        onChange={e => setContactData(d => ({ ...d, description: e.target.value }))}
-                        className={inputCls} placeholder="Have a question? Reach out to our team." />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
+                  {/* ── CONTACT type ── */}
+                  {type === 'contact' && (
+                    <>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
-                        <textarea value={contactData.address} rows={2}
-                          onChange={e => setContactData(d => ({ ...d, address: e.target.value }))}
-                          className={inputCls} placeholder="Adum Culture,&#10;Kiribathgoda, Sri Lanka 11600" />
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                        <textarea value={contactData.description} rows={2}
+                          onChange={e => setContactData(d => ({ ...d, description: e.target.value }))}
+                          className={inputCls} placeholder="Have a question? Reach out to our team." />
                       </div>
-                      <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
-                          <input value={contactData.email}
-                            onChange={e => setContactData(d => ({ ...d, email: e.target.value }))}
-                            className={inputCls} placeholder="info@adumculture.com" />
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+                          <textarea value={contactData.address} rows={2}
+                            onChange={e => setContactData(d => ({ ...d, address: e.target.value }))}
+                            className={inputCls} placeholder="Adum Culture,&#10;Kiribathgoda, Sri Lanka 11600" />
                         </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Phone / WhatsApp Number</label>
-                          <input value={contactData.phone}
-                            onChange={e => setContactData(d => ({ ...d, phone: e.target.value }))}
-                            className={inputCls} placeholder="+94 76 061 3070" />
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp URL</label>
-                      <input value={contactData.whatsappUrl}
-                        onChange={e => setContactData(d => ({ ...d, whatsappUrl: e.target.value }))}
-                        className={inputCls} placeholder="https://wa.me/94760613070" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Instagram URL</label>
-                        <input value={contactData.instagramUrl}
-                          onChange={e => setContactData(d => ({ ...d, instagramUrl: e.target.value }))}
-                          className={inputCls} placeholder="https://instagram.com/adum_culture" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Instagram Label</label>
-                        <input value={contactData.instagramLabel}
-                          onChange={e => setContactData(d => ({ ...d, instagramLabel: e.target.value }))}
-                          className={inputCls} placeholder="Instagram" />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Facebook URL</label>
-                        <input value={contactData.facebookUrl}
-                          onChange={e => setContactData(d => ({ ...d, facebookUrl: e.target.value }))}
-                          className={inputCls} placeholder="https://facebook.com/adumculture" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Facebook Label</label>
-                        <input value={contactData.facebookLabel}
-                          onChange={e => setContactData(d => ({ ...d, facebookLabel: e.target.value }))}
-                          className={inputCls} placeholder="Facebook" />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* ── ABOUT type ── */}
-                {type === 'about' && (
-                  <>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                      <textarea value={form.body ?? ''} rows={5}
-                        onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-                        className={inputCls} placeholder="About Us page description…" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-2">Page Image</label>
-                      {form.imageUrl ? (
-                        <div className="flex items-center gap-4">
-                          <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-gray-200">
-                            <Image src={form.imageUrl} alt="" fill className="object-cover" />
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                            <input value={contactData.email}
+                              onChange={e => setContactData(d => ({ ...d, email: e.target.value }))}
+                              className={inputCls} placeholder="info@adumculture.com" />
                           </div>
-                          <button onClick={() => setForm(f => ({ ...f, imageUrl: '' }))}
-                            className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-700">
-                            <X className="w-4 h-4" /> Remove image
-                          </button>
-                        </div>
-                      ) : (
-                        <button onClick={() => fileRef.current?.click()} disabled={uploading}
-                          className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-gray-400 disabled:opacity-50">
-                          {uploading
-                            ? <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                            : <><Upload className="w-4 h-4" /> Upload image</>}
-                        </button>
-                      )}
-                      <input ref={fileRef} type="file" accept="image/*" className="hidden"
-                        onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0])} />
-                    </div>
-                  </>
-                )}
-
-                {/* ── VALUES type ── */}
-                {type === 'values' && (
-                  <div className="space-y-6">
-                    <p className="text-xs text-gray-400">Edit the four value cards shown in the &quot;Our Values&quot; section on the About page.</p>
-                    {[1, 2, 3, 4].map(n => (
-                      <div key={n} className="border border-gray-100 rounded-lg p-4 space-y-3 bg-gray-50">
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Value 0{n}</p>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
-                          <input
-                            value={valuesData[`value${n}_title`] ?? ''}
-                            onChange={e => setValuesData(d => ({ ...d, [`value${n}_title`]: e.target.value }))}
-                            className={inputCls}
-                            placeholder={`Value ${n} title`}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                          <textarea
-                            value={valuesData[`value${n}_body`] ?? ''}
-                            rows={3}
-                            onChange={e => setValuesData(d => ({ ...d, [`value${n}_body`]: e.target.value }))}
-                            className={inputCls}
-                            placeholder={`Value ${n} description`}
-                          />
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Phone / WhatsApp Number</label>
+                            <input value={contactData.phone}
+                              onChange={e => setContactData(d => ({ ...d, phone: e.target.value }))}
+                              className={inputCls} placeholder="+94 76 061 3070" />
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp URL</label>
+                        <input value={contactData.whatsappUrl}
+                          onChange={e => setContactData(d => ({ ...d, whatsappUrl: e.target.value }))}
+                          className={inputCls} placeholder="https://wa.me/94760613070" />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Instagram URL</label>
+                          <input value={contactData.instagramUrl}
+                            onChange={e => setContactData(d => ({ ...d, instagramUrl: e.target.value }))}
+                            className={inputCls} placeholder="https://instagram.com/adum_culture" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Instagram Label</label>
+                          <input value={contactData.instagramLabel}
+                            onChange={e => setContactData(d => ({ ...d, instagramLabel: e.target.value }))}
+                            className={inputCls} placeholder="Instagram" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Facebook URL</label>
+                          <input value={contactData.facebookUrl}
+                            onChange={e => setContactData(d => ({ ...d, facebookUrl: e.target.value }))}
+                            className={inputCls} placeholder="https://facebook.com/adumculture" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Facebook Label</label>
+                          <input value={contactData.facebookLabel}
+                            onChange={e => setContactData(d => ({ ...d, facebookLabel: e.target.value }))}
+                            className={inputCls} placeholder="Facebook" />
+                        </div>
+                      </div>
+                    </>
+                  )}
 
-                {/* ── STORY type ── */}
-                {type === 'story' && (
-                  <>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Section Title</label>
-                      <input value={form.title ?? ''} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                        className={inputCls} placeholder="Our Story" />
+                  {/* ── ABOUT type ── */}
+                  {type === 'about' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                        <textarea value={form.body ?? ''} rows={5}
+                          onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+                          className={inputCls} placeholder="About Us page description…" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-2">Page Image</label>
+                        {form.imageUrl ? (
+                          <div className="flex items-center gap-4">
+                            <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-gray-200">
+                              <Image src={form.imageUrl} alt="" fill className="object-cover" />
+                            </div>
+                            <button onClick={() => setForm(f => ({ ...f, imageUrl: '' }))}
+                              className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-700">
+                              <X className="w-4 h-4" /> Remove image
+                            </button>
+                          </div>
+                        ) : (
+                          <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                            className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-gray-400 disabled:opacity-50">
+                            {uploading
+                              ? <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                              : <><Upload className="w-4 h-4" /> Upload image</>}
+                          </button>
+                        )}
+                        <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                          onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0])} />
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── VALUES type ── */}
+                  {type === 'values' && (
+                    <div className="space-y-6">
+                      <p className="text-xs text-gray-400">Edit the four value cards shown in the &quot;Our Values&quot; section on the About page.</p>
+                      {[1, 2, 3, 4].map(n => (
+                        <div key={n} className="border border-gray-100 rounded-lg p-4 space-y-3 bg-gray-50">
+                          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Value 0{n}</p>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                            <input
+                              value={valuesData[`value${n}_title`] ?? ''}
+                              onChange={e => setValuesData(d => ({ ...d, [`value${n}_title`]: e.target.value }))}
+                              className={inputCls}
+                              placeholder={`Value ${n} title`}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                            <textarea
+                              value={valuesData[`value${n}_body`] ?? ''}
+                              rows={3}
+                              onChange={e => setValuesData(d => ({ ...d, [`value${n}_body`]: e.target.value }))}
+                              className={inputCls}
+                              placeholder={`Value ${n} description`}
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
+                  )}
+
+                  {/* ── STORY type ── */}
+                  {type === 'story' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Section Title</label>
+                        <input value={form.title ?? ''} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                          className={inputCls} placeholder="Our Story" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                        <textarea value={form.body ?? ''} rows={5}
+                          onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+                          className={inputCls} placeholder="Short description shown on the homepage…" />
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── POLICY type ── */}
+                  {type === 'policy' && (
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                      <textarea value={form.body ?? ''} rows={5}
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Content <span className="text-gray-400 font-normal">(use blank lines to separate paragraphs)</span>
+                      </label>
+                      <textarea value={form.body ?? ''} rows={12}
                         onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-                        className={inputCls} placeholder="Short description shown on the homepage…" />
+                        className={inputCls} placeholder="Enter policy content…" />
                     </div>
-                  </>
-                )}
+                  )}
 
-                {/* ── POLICY type ── */}
-                {type === 'policy' && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Content <span className="text-gray-400 font-normal">(use blank lines to separate paragraphs)</span>
-                    </label>
-                    <textarea value={form.body ?? ''} rows={12}
-                      onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-                      className={inputCls} placeholder="Enter policy content…" />
-                  </div>
-                )}
-
-                <button onClick={save} disabled={saving || uploading}
-                  className="flex items-center gap-2 px-5 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50">
-                  <Save className="w-4 h-4" />
-                  {saving ? 'Saving…' : saved === key ? '✓ Saved!' : 'Save'}
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+                  <button onClick={save} disabled={saving || uploading}
+                    className="flex items-center gap-2 px-5 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50">
+                    <Save className="w-4 h-4" />
+                    {saving ? 'Saving…' : saved === key ? '✓ Saved!' : 'Save'}
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

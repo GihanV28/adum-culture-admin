@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { adminFetch } from '@/lib/api'
 import { Plus, Trash2, Pencil, Check, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 type Row = { size: string; values: string[] }
 type Guide = {
@@ -73,7 +74,7 @@ function ChartEditor({
   return (
     <div className="space-y-4">
       {/* Name + Note */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Chart Name *</label>
           <input value={form.name} onChange={e => set({ name: e.target.value })} className={inputCls} placeholder="e.g. Women's Tops" />
@@ -235,23 +236,23 @@ export default function SizeGuidesPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-4 sm:p-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Size Guides</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Size Guides</h1>
           <p className="text-sm text-gray-500 mt-1">Build size charts to attach to products</p>
         </div>
         {!creating && (
           <button onClick={() => { setCreating(true); setNewForm(emptyForm()) }}
-            className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800">
-            <Plus className="w-4 h-4" /> New Size Guide
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-black text-white rounded-lg text-sm hover:bg-gray-800 shrink-0">
+            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">New Size Guide</span><span className="sm:hidden">New</span>
           </button>
         )}
       </div>
 
       {/* Create form */}
       {creating && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-semibold text-gray-900">New Size Guide</h2>
             <button onClick={() => setCreating(false)} className="text-gray-400 hover:text-gray-700"><X className="w-4 h-4" /></button>
@@ -272,7 +273,21 @@ export default function SizeGuidesPage() {
       {/* List */}
       <div className="space-y-3">
         {loading ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400 text-sm">Loading…</div>
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2 flex-1">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-64" />
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Skeleton className="h-8 w-8 rounded-lg" />
+                  <Skeleton className="h-8 w-8 rounded-lg" />
+                  <Skeleton className="h-8 w-8 rounded-lg" />
+                </div>
+              </div>
+            </div>
+          ))
         ) : guides.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400 text-sm">
             No size guides yet. Create one to get started.
@@ -280,14 +295,14 @@ export default function SizeGuidesPage() {
         ) : guides.map(g => (
           <div key={g.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             {/* Header */}
-            <div className="flex items-center gap-4 px-6 py-4">
-              <div className="flex-1">
+            <div className="flex items-center gap-4 px-4 sm:px-6 py-4">
+              <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-900">{g.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs text-gray-400 mt-0.5 truncate">
                   {g.unit} · {(g.columns as string[]).join(', ')} · {(g.rows as Row[]).length} sizes · {g._count.products} product{g._count.products !== 1 ? 's' : ''}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 {editId === g.id ? (
                   <>
                     <button onClick={saveEdit} disabled={saving}
@@ -312,7 +327,7 @@ export default function SizeGuidesPage() {
 
             {/* Expanded: edit or preview */}
             {expanded === g.id && (
-              <div className="px-6 pb-6 border-t border-gray-100 pt-5">
+              <div className="px-4 sm:px-6 pb-6 border-t border-gray-100 pt-5">
                 {editId === g.id
                   ? <ChartEditor form={editForm} onChange={setEditForm} />
                   : <ChartPreview guide={g} />}
