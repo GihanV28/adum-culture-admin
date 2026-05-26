@@ -8,7 +8,7 @@ type ProfitMode = 'PERCENT' | 'FIXED'
 type ProfitUnit = 'PERCENT' | 'LKR'
 
 interface Product { id: string; name: string; itemCode?: string | null; status?: string }
-interface FabricEntry { id: string; fabricId: string; fabricName: string; quantity: number; unitCost: number; subtotal: number }
+interface FabricEntry { id: string; fabricId: string; fabricName: string; unit: string; quantity: number; unitCost: number; subtotal: number }
 interface OtherCost { id: string; label: string; amount: number }
 interface CostType { id: string; name: string; description?: string | null }
 
@@ -138,7 +138,7 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
   // ── Fabric entry management ──────────────────────────────────────────────
   const addFabricRow = () => {
     const rowId = uid()
-    setFabricEntries(e => [...e, { id: rowId, fabricId: '', fabricName: '', quantity: 0, unitCost: 0, subtotal: 0 }])
+    setFabricEntries(e => [...e, { id: rowId, fabricId: '', fabricName: '', unit: '', quantity: 0, unitCost: 0, subtotal: 0 }])
   }
 
   const removeFabricRow = (id: string) => setFabricEntries(e => e.filter(r => r.id !== id))
@@ -147,7 +147,7 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
     setFabricEntries(e => e.map(r => {
       if (r.id !== rowId) return r
       const subtotal = fabric.costPerUnit * r.quantity
-      return { ...r, fabricId: fabric.id, fabricName: fabric.name, unitCost: fabric.costPerUnit, subtotal }
+      return { ...r, fabricId: fabric.id, fabricName: fabric.name, unit: fabric.unit ?? 'units', unitCost: fabric.costPerUnit, subtotal }
     }))
     setFabricDropdown(d => ({ ...d, [rowId]: false }))
     setFabricSearch(s => ({ ...s, [rowId]: '' }))
@@ -423,10 +423,19 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
 
                       {/* Quantity */}
                       <div>
-                        <input type="number" min={0} value={row.quantity || ''}
-                          onChange={e => updateQty(row.id, Number(e.target.value))}
-                          placeholder={`Qty (${row.fabricName ? fabrics.find(f => f.id === row.fabricId)?.unit ?? 'units' : 'units'})`}
-                          className={inputCls} />
+                        <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-black">
+                          <input
+                            type="number" min={0} value={row.quantity || ''}
+                            onChange={e => updateQty(row.id, Number(e.target.value))}
+                            placeholder="0"
+                            className="flex-1 px-3 py-2 text-sm outline-none w-0 min-w-0"
+                          />
+                          {row.unit && (
+                            <span className="px-2 py-2 text-xs font-medium text-gray-500 bg-gray-50 border-l border-gray-200 whitespace-nowrap shrink-0">
+                              {row.unit}
+                            </span>
+                          )}
+                        </div>
                         {row.subtotal > 0 && <p className="text-xs text-gray-400 mt-1">LKR {fmt(row.subtotal)}</p>}
                       </div>
 
