@@ -637,17 +637,29 @@ model CostCalFabric {
   totalCost       Float
   images          Json?
   createdAt       DateTime         @default(now())
-  costings        CostCalCosting[]
 }
 
 model CostCalCosting {
-  id                  String         @id @default(cuid())
-  code                String
-  image               String?
-  fabricId            String?
+  id                  String   @id @default(cuid())
+  productId           String   @unique
+  fabricEntries       Json     @default("[]")
+  pieces              Int      @default(1)
+  otherCosts          Json     @default("[]")
+  profitMode          String   @default("PERCENT")
+  profitUnit          String   @default("PERCENT")
+  profitValue         Float    @default(0)
+  bnplTotal           Float    @default(0)
+  bnplMerchant        Float    @default(0)
+  gatewayPerc         Float    @default(0)
+  vatPerc             Float    @default(0)
+  deliveryTotal       Float    @default(0)
+  deliveryMerchant    Float    @default(0)
   totalProductionCost Float
   netProfit           Float
+  recommendedPrice    Float
+  originalPrice       Float    @default(0)
   sellingPrice        Float
-  createdAt           DateTime       @default(now())
-  fabric              CostCalFabric? @relation(fields: [fabricId], references: [id])
+  status              String   @default("draft")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }

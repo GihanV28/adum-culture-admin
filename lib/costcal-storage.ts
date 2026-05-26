@@ -14,18 +14,7 @@ export interface Fabric {
   createdAt: number
 }
 
-export interface Costing {
-  id: string
-  code: string
-  image?: string
-  fabricId?: string
-  totalProductionCost: number
-  netProfit: number
-  sellingPrice: number
-  createdAt: number
-}
-
-// Fabrics
+// Fabrics — stored in Supabase via API
 export async function getFabrics(): Promise<Fabric[]> {
   const res = await fetch('/api/costcal/fabrics')
   if (!res.ok) return []
@@ -60,26 +49,4 @@ export async function updateFabric(id: string, data: Partial<Fabric>): Promise<F
 
 export async function deleteFabric(id: string): Promise<void> {
   await fetch(`/api/costcal/fabrics/${id}`, { method: 'DELETE' })
-}
-
-// Costings
-export async function getCostings(): Promise<Costing[]> {
-  const res = await fetch('/api/costcal/costings')
-  if (!res.ok) return []
-  const data = await res.json()
-  return data.data?.costings ?? []
-}
-
-export async function addCosting(data: Omit<Costing, 'id' | 'createdAt'>): Promise<Costing> {
-  const res = await fetch('/api/costcal/costings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  })
-  const json = await res.json()
-  return json.data.costing
-}
-
-export async function deleteCosting(id: string): Promise<void> {
-  await fetch(`/api/costcal/costings/${id}`, { method: 'DELETE' })
 }

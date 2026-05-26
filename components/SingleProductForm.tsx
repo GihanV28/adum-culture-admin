@@ -200,16 +200,11 @@ export default function SingleProductForm({ initial, id, collections }: {
             </div>
           </div>
 
-          {/* Pricing */}
+          {/* Inventory */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="font-semibold text-gray-900">Pricing & Inventory</h2>
-            <div className="grid grid-cols-3 gap-4">
-              <div><label className="block text-xs font-medium text-gray-700 mb-1">Selling Price (LKR) *</label>
-                <input type="number" value={form.price} onChange={e => set('price', e.target.value)} className={inputCls} /></div>
-              <div><label className="block text-xs font-medium text-gray-700 mb-1">Original Price (LKR)</label>
-                <input type="number" value={form.comparePrice} onChange={e => set('comparePrice', e.target.value)} className={inputCls} /></div>
-              <div><label className="block text-xs font-medium text-gray-700 mb-1">Cost Price (LKR)</label>
-                <input type="number" value={form.costPrice} onChange={e => set('costPrice', e.target.value)} className={inputCls} /></div>
+            <div>
+              <h2 className="font-semibold text-gray-900">Inventory</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Prices are set in Cost Calculator → Costumes Inventory</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><label className="block text-xs font-medium text-gray-700 mb-1">Total Stock</label>
@@ -284,13 +279,10 @@ export default function SingleProductForm({ initial, id, collections }: {
         {/* Sidebar */}
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="font-semibold text-gray-900">Status</h2>
-            <select value={form.status} onChange={e => set('status', e.target.value)} className={inputCls}>
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="active">Active (ORM)</option>
-              <option value="inactive">Inactive</option>
-            </select>
+            <div>
+              <h2 className="font-semibold text-gray-900">Flags</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Status is managed in Costumes Inventory</p>
+            </div>
             <div className="space-y-2">
               {[{ key: 'featured', label: 'Featured' }, { key: 'newArrival', label: 'New Arrival' }, { key: 'bestSeller', label: 'Best Seller' }].map(({ key, label }) => (
                 <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
