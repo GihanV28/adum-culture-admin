@@ -60,6 +60,8 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
   const [confirmReplace, setConfirmReplace] = useState(false)
 
   const [productsError, setProductsError] = useState(false)
+  const [productsLoading, setProductsLoading] = useState(true)
+  const productDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     getFabrics().then(setFabrics)
@@ -70,7 +72,20 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
         else setProductsError(true)
       })
       .catch(() => setProductsError(true))
+      .finally(() => setProductsLoading(false))
   }, [])
+
+  // Close product dropdown on outside click
+  useEffect(() => {
+    if (!productDropdown) return
+    const handler = (e: MouseEvent) => {
+      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
+        setProductDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [productDropdown])
 
   // Check if selected product already has a costing
   useEffect(() => {
@@ -219,7 +234,7 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
         {/* Section 1: Select Product */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h3 className="font-semibold text-gray-900 mb-4">1. Select Product</h3>
-          <div className="relative">
+          <div className="relative" ref={productDropdownRef}>
             <label className={labelCls}>Product *</label>
             <button type="button" onClick={() => setProductDropdown(d => !d)}
               className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white">
@@ -243,7 +258,10 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
                     placeholder="Search by name or SKU…" className="w-full text-sm outline-none" />
                 </div>
                 <div className="max-h-52 overflow-auto">
-                  {filteredProducts.map(p => (
+                  {productsLoading && (
+                    <p className="px-3 py-3 text-sm text-gray-400">Loading products…</p>
+                  )}
+                  {!productsLoading && filteredProducts.map(p => (
                     <button key={p.id} onClick={() => { setSelectedProduct(p); setProductDropdown(false); setProductSearch('') }}
                       className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-2">
                       <span>
@@ -253,8 +271,12 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
                       <span className="text-xs text-gray-400 shrink-0">{STATUS_LABELS[p.status ?? ''] ?? p.status}</span>
                     </button>
                   ))}
-                  {filteredProducts.length === 0 && !productsError && <p className="px-3 py-3 text-sm text-gray-400">No products found</p>}
-                  {productsError && <p className="px-3 py-3 text-sm text-red-500">Failed to load products — please refresh</p>}
+                  {!productsLoading && filteredProducts.length === 0 && !productsError && (
+                    <p className="px-3 py-3 text-sm text-gray-400">No products found</p>
+                  )}
+                  {productsError && (
+                    <p className="px-3 py-3 text-sm text-red-500">Failed to load products — please refresh</p>
+                  )}
                 </div>
               </div>
             )}
