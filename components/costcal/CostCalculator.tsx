@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { Plus, Trash2, ChevronDown, Save, AlertCircle, Search, Package } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Save, AlertCircle, Search, Package, X } from 'lucide-react'
 import { getFabrics, type Fabric } from '@/lib/costcal-storage'
 import { adminFetch } from '@/lib/api'
 
@@ -10,6 +10,7 @@ type ProfitUnit = 'PERCENT' | 'LKR'
 interface Product { id: string; name: string; itemCode?: string | null; status?: string }
 interface FabricEntry { id: string; fabricId: string; fabricName: string; quantity: number; unitCost: number; subtotal: number }
 interface OtherCost { id: string; label: string; amount: number }
+interface CostType { id: string; name: string; description?: string | null }
 
 const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
@@ -37,8 +38,18 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
 
   // Other costs
   const [otherCosts, setOtherCosts] = useState<OtherCost[]>([])
-  const [newCostLabel, setNewCostLabel] = useState('')
+  const [costTypes, setCostTypes] = useState<CostType[]>([])
+  const [costTypeSearch, setCostTypeSearch] = useState('')
+  const [costTypeDropdown, setCostTypeDropdown] = useState(false)
+  const [selectedCostType, setSelectedCostType] = useState<CostType | null>(null)
   const [newCostAmount, setNewCostAmount] = useState('')
+  const costTypeDropdownRef = useRef<HTMLDivElement>(null)
+  // New cost type modal
+  const [showCostTypeModal, setShowCostTypeModal] = useState(false)
+  const [modalName, setModalName] = useState('')
+  const [modalDesc, setModalDesc] = useState('')
+  const [modalSaving, setModalSaving] = useState(false)
+  const [modalError, setModalError] = useState('')
 
   // Pricing
   const [profitMode, setProfitMode] = useState<ProfitMode>('PERCENT')
@@ -63,8 +74,16 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
   const [productsLoading, setProductsLoading] = useState(true)
   const productDropdownRef = useRef<HTMLDivElement>(null)
 
+  const loadCostTypes = () => {
+    fetch('/api/costcal/cost-types')
+      .then(r => r.json())
+      .then(d => { if (d.success) setCostTypes(d.data?.types ?? []) })
+      .catch(() => {})
+  }
+
   useEffect(() => {
     getFabrics().then(setFabrics)
+    loadCostTypes()
     fetch('/api/products?limit=500')
       .then(r => r.json())
       .then(d => {
@@ -74,6 +93,18 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
       .catch(() => setProductsError(true))
       .finally(() => setProductsLoading(false))
   }, [])
+
+  // Close cost-type dropdown on outside click
+  useEffect(() => {
+    if (!costTypeDropdown) return
+    const handler = (e: MouseEvent) => {
+      if (costTypeDropdownRef.current && !costTypeDropdownRef.current.contains(e.target as Node)) {
+        setCostTypeDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [costTypeDropdown])
 
   // Close product dropdown on outside click
   useEffect(() => {
@@ -164,9 +195,29 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
     : totalCheckoutPrice - (clientDeductionsPerc / 100) * totalCheckoutPrice - customerDelivery - merchantAbsorbedBNPL - merchantDelivery - totalProductionCost
 
   const addOtherCost = () => {
-    if (!newCostLabel || !newCostAmount) return
-    setOtherCosts(c => [...c, { id: uid(), label: newCostLabel, amount: Number(newCostAmount) }])
-    setNewCostLabel(''); setNewCostAmount('')
+    if (!selectedCostType || !newCostAmount) return
+    setOtherCosts(c => [...c, { id: uid(), label: selectedCostType.name, amount: Number(newCostAmount) }])
+    setSelectedCostType(null); setNewCostAmount(''); setCostTypeSearch('')
+  }
+
+  const saveCostType = async () => {
+    if (!modalName.trim()) return
+    setModalSaving(true); setModalError('')
+    try {
+      const res = await fetch('/api/costcal/cost-types', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: modalName.trim(), description: modalDesc.trim() || undefined }),
+      })
+      const json = await res.json()
+      if (!json.success) { setModalError(json.message ?? 'Failed to save'); return }
+      loadCostTypes()
+      setShowCostTypeModal(false)
+    } catch {
+      setModalError('Network error — please try again')
+    } finally {
+      setModalSaving(false)
+    }
   }
 
   const doSave = async () => {
@@ -222,6 +273,45 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
               <button onClick={() => setConfirmReplace(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
               <button onClick={doSave} disabled={saving} className="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
                 {saving ? 'Saving…' : 'Yes, replace'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Production Cost Type modal */}
+      {showCostTypeModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 w-full max-w-sm shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900">New Production Cost Type</h3>
+              <button onClick={() => setShowCostTypeModal(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className={labelCls}>Name *</label>
+                <input autoFocus value={modalName} onChange={e => setModalName(e.target.value)}
+                  placeholder="e.g. Labour, Packaging, Embroidery"
+                  className={inputCls}
+                  onKeyDown={e => { if (e.key === 'Enter') saveCostType() }}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Description (optional)</label>
+                <input value={modalDesc} onChange={e => setModalDesc(e.target.value)}
+                  placeholder="Short note"
+                  className={inputCls}
+                />
+              </div>
+              {modalError && <p className="text-xs text-red-500">{modalError}</p>}
+            </div>
+            <div className="flex gap-2 justify-end mt-5">
+              <button onClick={() => setShowCostTypeModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={saveCostType} disabled={modalSaving || !modalName.trim()}
+                className="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
+                {modalSaving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>
@@ -371,22 +461,72 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
 
         {/* Section 3: Other Production Costs */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">3. Other Production Costs</h3>
-          <div className="space-y-2 mb-3">
-            {otherCosts.map(c => (
-              <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-100">
-                <span className="text-sm text-gray-700">{c.label}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium">LKR {fmt(c.amount)}</span>
-                  <button onClick={() => setOtherCosts(cs => cs.filter(x => x.id !== c.id))} className="text-gray-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900">3. Other Production Costs</h3>
+            <button onClick={() => { setModalName(''); setModalDesc(''); setModalError(''); setShowCostTypeModal(true) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-600">
+              <Plus className="w-3.5 h-3.5" /> New Production Cost
+            </button>
           </div>
-          <div className="flex gap-2">
-            <input value={newCostLabel} onChange={e => setNewCostLabel(e.target.value)} placeholder="Label (e.g. Labour)" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black" />
-            <input type="number" value={newCostAmount} onChange={e => setNewCostAmount(e.target.value)} placeholder="Amount" className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black" />
-            <button onClick={addOtherCost} className="flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm"><Plus className="w-4 h-4" /> Add</button>
+
+          {/* Added cost rows */}
+          {otherCosts.length > 0 && (
+            <div className="space-y-1 mb-4">
+              {otherCosts.map(c => (
+                <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-100">
+                  <span className="text-sm text-gray-700">{c.label}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium">LKR {fmt(c.amount)}</span>
+                    <button onClick={() => setOtherCosts(cs => cs.filter(x => x.id !== c.id))} className="text-gray-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Picker row */}
+          <div className="flex gap-2 items-start">
+            {/* Cost type dropdown */}
+            <div className="relative flex-1" ref={costTypeDropdownRef}>
+              <button type="button" onClick={() => setCostTypeDropdown(d => !d)}
+                className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-black">
+                <span className={selectedCostType ? 'text-gray-900' : 'text-gray-400'}>
+                  {selectedCostType ? selectedCostType.name : 'Select cost type…'}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              </button>
+              {costTypeDropdown && (
+                <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                  <div className="p-2 border-b border-gray-100 flex items-center gap-2 px-3">
+                    <Search className="w-3.5 h-3.5 text-gray-400" />
+                    <input autoFocus value={costTypeSearch} onChange={e => setCostTypeSearch(e.target.value)}
+                      placeholder="Search…" className="w-full text-sm outline-none" />
+                  </div>
+                  <div className="max-h-44 overflow-auto">
+                    {costTypes
+                      .filter(t => t.name.toLowerCase().includes(costTypeSearch.toLowerCase()))
+                      .map(t => (
+                        <button key={t.id} onClick={() => { setSelectedCostType(t); setCostTypeDropdown(false); setCostTypeSearch('') }}
+                          className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50">
+                          <span className="font-medium text-gray-900 block">{t.name}</span>
+                          {t.description && <span className="text-xs text-gray-400">{t.description}</span>}
+                        </button>
+                      ))}
+                    {costTypes.filter(t => t.name.toLowerCase().includes(costTypeSearch.toLowerCase())).length === 0 && (
+                      <p className="px-3 py-3 text-sm text-gray-400">
+                        {costTypes.length === 0 ? 'No cost types yet — click "New Production Cost" to add one' : 'No matches'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <input type="number" value={newCostAmount} onChange={e => setNewCostAmount(e.target.value)}
+              placeholder="Amount (LKR)" className="w-36 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+            <button onClick={addOtherCost} disabled={!selectedCostType || !newCostAmount}
+              className="flex items-center gap-1 px-3 py-2 bg-gray-900 text-white hover:bg-gray-700 disabled:opacity-40 rounded-lg text-sm">
+              <Plus className="w-4 h-4" /> Add
+            </button>
           </div>
         </div>
 
