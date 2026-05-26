@@ -59,15 +59,24 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
   const [saving, setSaving] = useState(false)
   const [confirmReplace, setConfirmReplace] = useState(false)
 
+  const [productsError, setProductsError] = useState(false)
+
   useEffect(() => {
     getFabrics().then(setFabrics)
-    adminFetch('/api/products?limit=500').then(d => setProducts(d.data?.products ?? [])).catch(() => {})
+    fetch('/api/products?limit=500')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) setProducts(d.data?.products ?? [])
+        else setProductsError(true)
+      })
+      .catch(() => setProductsError(true))
   }, [])
 
   // Check if selected product already has a costing
   useEffect(() => {
     if (!selectedProduct) { setExistingCosting(false); return }
-    adminFetch('/api/costcal/costings')
+    fetch('/api/costcal/costings')
+      .then(r => r.json())
       .then(d => {
         const has = (d.data?.costings ?? []).some((c: { productId: string }) => c.productId === selectedProduct.id)
         setExistingCosting(has)
@@ -244,7 +253,8 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
                       <span className="text-xs text-gray-400 shrink-0">{STATUS_LABELS[p.status ?? ''] ?? p.status}</span>
                     </button>
                   ))}
-                  {filteredProducts.length === 0 && <p className="px-3 py-3 text-sm text-gray-400">No products found</p>}
+                  {filteredProducts.length === 0 && !productsError && <p className="px-3 py-3 text-sm text-gray-400">No products found</p>}
+                  {productsError && <p className="px-3 py-3 text-sm text-red-500">Failed to load products — please refresh</p>}
                 </div>
               </div>
             )}
