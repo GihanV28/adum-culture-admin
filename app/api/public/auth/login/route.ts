@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
         email: true,
         phone: true,
         emailVerified: true,
+        suspended: true,
         passwordHash: true,
       },
     })
@@ -45,7 +46,14 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { passwordHash: _, ...userWithoutHash } = user
+    if (user.suspended) {
+      return NextResponse.json(
+        { success: false, message: 'Your account has been suspended. Please contact support.' },
+        { status: 403, headers: CORS }
+      )
+    }
+
+    const { passwordHash: _, suspended: __, ...userWithoutHash } = user
     const token = signUserToken({ userId: user.id, email: user.email })
     const isProd = process.env.NODE_ENV === 'production'
 

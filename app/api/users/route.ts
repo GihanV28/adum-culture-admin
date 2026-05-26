@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get('search') ?? ''
   const users = await db.user.findMany({
     where: search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }] } : {},
-    select: { id: true, name: true, email: true, phone: true, emailVerified: true, createdAt: true, _count: { select: { orders: true } } },
+    select: { id: true, name: true, email: true, phone: true, emailVerified: true, suspended: true, createdAt: true, _count: { select: { orders: true } } },
     orderBy: { createdAt: 'desc' },
   })
   return NextResponse.json({ success: true, data: { users } })
