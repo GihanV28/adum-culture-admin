@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
         district: body.district,
         postalCode: body.postalCode ?? null,
         paymentMethod: body.paymentMethod,
-        paymentStatus: 'paid',
+        paymentStatus: 'pending',
         status: 'open',
         subtotal,
         shippingCost,
