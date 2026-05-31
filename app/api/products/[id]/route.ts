@@ -19,7 +19,7 @@ const schema = z.object({
   productType: z.enum(['single', 'variable']).default('single'),
   itemCode: z.string().nullish(),
   description: z.string().optional(),
-  price: z.number().positive(), comparePrice: z.number().optional(),
+  price: z.number().min(0), comparePrice: z.number().optional(),
   costPrice: z.number().default(0),
   status: z.enum(['draft', 'published', 'active', 'inactive', 'out_of_stock']).default('draft'),
   featured: z.boolean().default(false), newArrival: z.boolean().default(false), bestSeller: z.boolean().default(false),
