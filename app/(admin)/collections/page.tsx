@@ -278,8 +278,8 @@ export default function CollectionsPage() {
                   <input ref={editFileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], true)} />
                 </div>
                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <input value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />
-                  <input value={editForm.slug ?? ''} onChange={e => setEditForm(f => ({ ...f, slug: e.target.value }))} className={inputCls} />
+                  <input value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value, slug: slugify(e.target.value) }))} className={inputCls} placeholder="Name" />
+                  <input value={editForm.slug ?? ''} onChange={e => setEditForm(f => ({ ...f, slug: e.target.value }))} className={inputCls} placeholder="Slug" />
                 </div>
                 <button onClick={() => save(c.id)} className="p-1.5 rounded bg-green-50 text-green-600 hover:bg-green-100 shrink-0"><Check className="w-4 h-4" /></button>
                 <button onClick={() => setEditId(null)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 shrink-0"><X className="w-4 h-4" /></button>
