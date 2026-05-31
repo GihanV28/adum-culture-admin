@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { adminFetch } from '@/lib/api'
 import { slugify } from '@/lib/utils'
-import { Plus, Trash2, Upload, X } from 'lucide-react'
+import { Plus, Trash2, Upload, X, Download } from 'lucide-react'
 
 interface Collection { id: string; name: string }
 interface Category { id: string; name: string; skuPrefix?: string | null }
@@ -51,6 +51,8 @@ export default function VariableProductForm({ initial, id, collections, initialV
   const [newSizes, setNewSizes] = useState<{ size: string; stock: number }[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [uploadingVariants, setUploadingVariants] = useState<Set<number>>(new Set())
+  const [draggingVariant, setDraggingVariant] = useState<number | null>(null)
   const fileRefs = useRef<(HTMLInputElement | null)[]>([])
 
   useEffect(() => {
@@ -86,10 +88,7 @@ export default function VariableProductForm({ initial, id, collections, initialV
     set('categoryId', catId)
     if (!catId || variants.length === 0) return
     const catPrefix = getCatPrefix(catId)
-    const updated = await Promise.all(variants.map(async (v) => ({
-      ...v,
-      sku: await buildSku(catPrefix, v.colorHex),
-    })))
+    const updated = await Promise.all(variants.map(async (v) => ({ ...v, sku: await buildSku(catPrefix, v.colorHex) })))
     setVariants(updated)
   }
 
@@ -121,17 +120,25 @@ export default function VariableProductForm({ initial, id, collections, initialV
 
   const removeVariant = (vi: number) => setVariants(prev => prev.filter((_, i) => i !== vi))
 
-  const uploadImageForVariant = async (vi: number, file: File) => {
-    updateVariant(vi, { skuLoading: true })
-    const fd = new FormData(); fd.append('file', file)
+  const uploadImagesForVariant = async (vi: number, files: File[]) => {
+    if (!files.length) return
+    setUploadingVariants(prev => new Set(prev).add(vi))
     const token = localStorage.getItem('admin_token')
-    const res = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd })
-    const data = await res.json()
-    if (data.success) {
-      const v = variants[vi]
-      updateVariant(vi, { images: [...v.images, { url: data.data.url, order: v.images.length }] })
-    }
-    updateVariant(vi, { skuLoading: false })
+    const results = await Promise.allSettled(
+      files.map(async (file) => {
+        const fd = new FormData(); fd.append('file', file)
+        const res = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd })
+        const data = await res.json()
+        if (!data.success) throw new Error(data.message || 'Upload failed')
+        return data.data.url as string
+      })
+    )
+    const urls = results.filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled').map(r => r.value)
+    setVariants(prev => prev.map((v, i) => {
+      if (i !== vi) return v
+      return { ...v, images: [...v.images, ...urls.map((url, idx) => ({ url, order: v.images.length + idx }))] }
+    }))
+    setUploadingVariants(prev => { const s = new Set(prev); s.delete(vi); return s })
   }
 
   const removeImageFromVariant = (vi: number, imgIdx: number) => {
@@ -141,17 +148,30 @@ export default function VariableProductForm({ initial, id, collections, initialV
 
   const addSizeToVariant = (vi: number) => {
     const ns = newSizes[vi]
-    if (!ns?.size) return
+    if (!ns?.size.trim()) return
     const v = variants[vi]
     updateVariant(vi, { sizes: [...v.sizes, { size: ns.size, stock: ns.stock }] })
     setNewSizes(prev => prev.map((s, i) => i === vi ? { size: '', stock: 0 } : s))
   }
 
+  const importSizesToVariant = (vi: number, guide: SizeGuide) => {
+    updateVariant(vi, { sizes: guide.rows.map(r => ({ size: r.size, stock: 0 })) })
+  }
+
+  const importSizesToAll = (guide: SizeGuide) => {
+    const imported = guide.rows.map(r => ({ size: r.size, stock: 0 }))
+    setVariants(prev => prev.map(v => ({ ...v, sizes: imported })))
+  }
+
   const toggleCollection = (cid: string) => set('collectionIds', form.collectionIds.includes(cid) ? form.collectionIds.filter(c => c !== cid) : [...form.collectionIds, cid])
 
   const save = async () => {
-    if (variants.length === 0) { setError('Add at least one color variant'); return }
-    setSaving(true); setError('')
+    setError('')
+    if (!form.name.trim()) { setError('Product name is required.'); return }
+    if (!form.slug.trim()) { setError('Slug is required.'); return }
+    if (!form.categoryId) { setError('Please select a category.'); return }
+    if (variants.length === 0) { setError('Add at least one color variant.'); return }
+    setSaving(true)
     try {
       const payload = {
         productType: 'variable',
@@ -178,11 +198,12 @@ export default function VariableProductForm({ initial, id, collections, initialV
       if (id) await adminFetch(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
       else await adminFetch('/api/products', { method: 'POST', body: JSON.stringify(payload) })
       router.push('/products')
-    } catch (err) { setError(err instanceof Error ? err.message : 'Save failed') }
+    } catch (err) { setError(err instanceof Error ? err.message : 'Save failed. Please try again.') }
     setSaving(false)
   }
 
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
+  const selectedGuide = sizeGuides.find(g => g.id === form.sizeGuideId)
 
   return (
     <div className="p-8">
@@ -196,7 +217,7 @@ export default function VariableProductForm({ initial, id, collections, initialV
           <button onClick={save} disabled={saving} className="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">{saving ? 'Saving…' : 'Save Product'}</button>
         </div>
       </div>
-      {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
+      {error && <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-6">
@@ -213,11 +234,11 @@ export default function VariableProductForm({ initial, id, collections, initialV
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="font-semibold text-gray-900">Basic Information</h2>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Product Name *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Product Name <span className="text-red-500">*</span></label>
               <input value={form.name} onChange={e => handleNameChange(e.target.value)} className={inputCls} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Slug *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Slug <span className="text-red-500">*</span></label>
               <input value={form.slug} onChange={e => set('slug', e.target.value)} className={inputCls} />
             </div>
             <div>
@@ -247,97 +268,136 @@ export default function VariableProductForm({ initial, id, collections, initialV
                 Click <strong>Add Color</strong> to add the first color variant.
               </div>
             )}
-            {variants.map((variant, vi) => (
-              <div key={vi} className="border border-gray-200 rounded-xl overflow-hidden">
-                {/* Color header */}
-                <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
-                  <input type="color" value={variant.colorHex} onChange={e => handleColorChange(vi, e.target.value)}
-                    className="w-9 h-9 rounded-lg cursor-pointer border border-gray-200 p-0.5 bg-white" />
-                  <input value={variant.colorHex} onChange={e => handleColorChange(vi, e.target.value)}
-                    className="w-24 px-2 py-1 border border-gray-200 rounded text-xs font-mono focus:outline-none" />
-                  <div className="flex-1">
-                    <span className="text-xs text-gray-400">SKU: </span>
-                    <span className="text-xs font-mono font-semibold text-gray-700">
-                      {variant.skuLoading ? 'generating…' : (variant.sku || '—')}
-                    </span>
-                  </div>
-                  <button onClick={() => removeVariant(vi)} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
-                </div>
 
-                <div className="p-4 space-y-4">
-                  {/* Images for this color */}
-                  <div>
-                    <p className="text-xs font-medium text-gray-600 mb-2">Images for this color</p>
-                    <div className="flex flex-wrap gap-2">
-                      {variant.images.map((img, ii) => (
-                        <div key={ii} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 group">
-                          <Image src={img.url} alt="" fill className="object-cover" />
-                          <button onClick={() => removeImageFromVariant(vi, ii)}
-                            className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center">
-                            <X className="w-2.5 h-2.5" />
-                          </button>
-                        </div>
-                      ))}
-                      <button onClick={() => fileRefs.current[vi]?.click()}
-                        className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-gray-400">
-                        <Upload className="w-4 h-4" />
-                        <span className="text-xs">Upload</span>
-                      </button>
-                      <input ref={el => { fileRefs.current[vi] = el }} type="file" accept="image/*" className="hidden"
-                        onChange={e => e.target.files?.[0] && uploadImageForVariant(vi, e.target.files[0])} />
+            {variants.map((variant, vi) => {
+              const isUploading = uploadingVariants.has(vi)
+              const isDraggingThis = draggingVariant === vi
+              return (
+                <div key={vi} className="border border-gray-200 rounded-xl overflow-hidden">
+                  {/* Color header */}
+                  <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200">
+                    <input type="color" value={variant.colorHex} onChange={e => handleColorChange(vi, e.target.value)}
+                      className="w-9 h-9 rounded-lg cursor-pointer border border-gray-200 p-0.5 bg-white" />
+                    <input value={variant.colorHex} onChange={e => handleColorChange(vi, e.target.value)}
+                      className="w-24 px-2 py-1 border border-gray-200 rounded text-xs font-mono focus:outline-none" />
+                    <div className="flex-1">
+                      <span className="text-xs text-gray-400">SKU: </span>
+                      <span className="text-xs font-mono font-semibold text-gray-700">
+                        {variant.skuLoading ? 'generating…' : (variant.sku || '—')}
+                      </span>
                     </div>
+                    <button onClick={() => removeVariant(vi)} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
                   </div>
 
-                  {/* Sizes for this color */}
-                  <div>
-                    <p className="text-xs font-medium text-gray-600 mb-2">Sizes & Stock</p>
-                    {variant.sizes.length > 0 && (
-                      <table className="w-full text-sm mb-2">
-                        <thead><tr className="border-b border-gray-100">
-                          <th className="pb-1 text-left text-xs font-medium text-gray-400 w-28">Size</th>
-                          <th className="pb-1 text-left text-xs font-medium text-gray-400 w-24">Stock</th>
-                          <th className="pb-1 text-left text-xs font-medium text-gray-400">Status</th>
-                          <th className="w-6"></th>
-                        </tr></thead>
-                        <tbody>
-                          {variant.sizes.map((s, si) => (
-                            <tr key={si}>
-                              <td className="py-1 pr-2">
-                                <input value={s.size} onChange={e => updateVariant(vi, { sizes: variant.sizes.map((r, j) => j === si ? { ...r, size: e.target.value } : r) })}
-                                  className="w-24 px-2 py-1 border border-gray-200 rounded text-sm" />
-                              </td>
-                              <td className="py-1 pr-2">
-                                <input type="number" min={0} value={s.stock} onChange={e => updateVariant(vi, { sizes: variant.sizes.map((r, j) => j === si ? { ...r, stock: +e.target.value } : r) })}
-                                  className="w-24 px-2 py-1 border border-gray-200 rounded text-sm" />
-                              </td>
-                              <td className="py-1">
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                                  {s.stock > 0 ? 'In Stock' : 'Out of Stock'}
-                                </span>
-                              </td>
-                              <td className="py-1">
-                                <button onClick={() => updateVariant(vi, { sizes: variant.sizes.filter((_, j) => j !== si) })} className="text-gray-300 hover:text-red-500">
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
+                  <div className="p-4 space-y-4">
+                    {/* Images for this color */}
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-2">Images for this color</p>
+                      {variant.images.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {variant.images.map((img, ii) => (
+                            <div key={ii} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 group">
+                              <Image src={img.url} alt="" fill className="object-cover" />
+                              <button onClick={() => removeImageFromVariant(vi, ii)}
+                                className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center">
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
                           ))}
-                        </tbody>
-                      </table>
-                    )}
-                    <div className="flex gap-2 items-center">
-                      <input placeholder="Size" value={newSizes[vi]?.size ?? ''} onChange={e => setNewSizes(prev => prev.map((s, i) => i === vi ? { ...s, size: e.target.value } : s))}
-                        onKeyDown={e => e.key === 'Enter' && addSizeToVariant(vi)} className="w-24 px-2 py-1.5 border border-gray-300 rounded text-sm" />
-                      <input type="number" placeholder="Stock" value={newSizes[vi]?.stock ?? 0} onChange={e => setNewSizes(prev => prev.map((s, i) => i === vi ? { ...s, stock: +e.target.value } : s))}
-                        onKeyDown={e => e.key === 'Enter' && addSizeToVariant(vi)} className="w-20 px-2 py-1.5 border border-gray-300 rounded text-sm" />
-                      <button onClick={() => addSizeToVariant(vi)} className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm">
-                        <Plus className="w-3.5 h-3.5" /> Add size
-                      </button>
+                        </div>
+                      )}
+                      <div
+                        onDragOver={e => { e.preventDefault(); setDraggingVariant(vi) }}
+                        onDragLeave={e => { e.preventDefault(); setDraggingVariant(null) }}
+                        onDrop={e => {
+                          e.preventDefault(); setDraggingVariant(null)
+                          const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+                          uploadImagesForVariant(vi, files)
+                        }}
+                        onClick={() => !isUploading && fileRefs.current[vi]?.click()}
+                        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer select-none transition-all ${
+                          isDraggingThis ? 'border-black bg-black/5' :
+                          isUploading ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed' :
+                          'border-gray-300 hover:border-gray-500 hover:bg-gray-50/50'
+                        }`}
+                      >
+                        {isUploading ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-700 rounded-full animate-spin" />
+                            <span className="text-xs text-gray-500">Uploading…</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-2 pointer-events-none">
+                            <Upload className="w-4 h-4 text-gray-400" />
+                            <span className="text-xs text-gray-500">Drag & drop or click · multiple files</span>
+                          </div>
+                        )}
+                      </div>
+                      <input ref={el => { fileRefs.current[vi] = el }} type="file" accept="image/*" multiple className="hidden"
+                        onChange={e => e.target.files && uploadImagesForVariant(vi, Array.from(e.target.files))} />
+                    </div>
+
+                    {/* Sizes for this color */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-medium text-gray-600">Sizes & Stock</p>
+                        {selectedGuide && selectedGuide.rows.length > 0 && (
+                          <button
+                            onClick={() => importSizesToVariant(vi, selectedGuide)}
+                            className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 text-gray-500"
+                          >
+                            <Download className="w-3 h-3" /> Import from guide
+                          </button>
+                        )}
+                      </div>
+                      {variant.sizes.length > 0 && (
+                        <table className="w-full text-sm mb-2">
+                          <thead><tr className="border-b border-gray-100">
+                            <th className="pb-1 text-left text-xs font-medium text-gray-400 w-28">Size</th>
+                            <th className="pb-1 text-left text-xs font-medium text-gray-400 w-24">Stock</th>
+                            <th className="pb-1 text-left text-xs font-medium text-gray-400">Status</th>
+                            <th className="w-6"></th>
+                          </tr></thead>
+                          <tbody>
+                            {variant.sizes.map((s, si) => (
+                              <tr key={si}>
+                                <td className="py-1 pr-2">
+                                  <input value={s.size} onChange={e => updateVariant(vi, { sizes: variant.sizes.map((r, j) => j === si ? { ...r, size: e.target.value } : r) })}
+                                    className="w-24 px-2 py-1 border border-gray-200 rounded text-sm" />
+                                </td>
+                                <td className="py-1 pr-2">
+                                  <input type="number" min={0} value={s.stock} onChange={e => updateVariant(vi, { sizes: variant.sizes.map((r, j) => j === si ? { ...r, stock: +e.target.value } : r) })}
+                                    className="w-24 px-2 py-1 border border-gray-200 rounded text-sm" />
+                                </td>
+                                <td className="py-1">
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.stock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                                    {s.stock > 0 ? 'In Stock' : 'Out of Stock'}
+                                  </span>
+                                </td>
+                                <td className="py-1">
+                                  <button onClick={() => updateVariant(vi, { sizes: variant.sizes.filter((_, j) => j !== si) })} className="text-gray-300 hover:text-red-500">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                      <div className="flex gap-2 items-center">
+                        <input placeholder="Size" value={newSizes[vi]?.size ?? ''} onChange={e => setNewSizes(prev => prev.map((s, i) => i === vi ? { ...s, size: e.target.value } : s))}
+                          onKeyDown={e => e.key === 'Enter' && addSizeToVariant(vi)} className="w-24 px-2 py-1.5 border border-gray-300 rounded text-sm" />
+                        <input type="number" placeholder="Stock" value={newSizes[vi]?.stock ?? 0} onChange={e => setNewSizes(prev => prev.map((s, i) => i === vi ? { ...s, stock: +e.target.value } : s))}
+                          onKeyDown={e => e.key === 'Enter' && addSizeToVariant(vi)} className="w-20 px-2 py-1.5 border border-gray-300 rounded text-sm" />
+                        <button onClick={() => addSizeToVariant(vi)} className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm">
+                          <Plus className="w-3.5 h-3.5" /> Add size
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Inventory settings */}
@@ -361,7 +421,7 @@ export default function VariableProductForm({ initial, id, collections, initialV
               <textarea value={form.careInstructions} onChange={e => set('careInstructions', e.target.value)} rows={3} className={inputCls} /></div>
             <div><label className="block text-xs font-medium text-gray-700 mb-1">Style Guide (one per line)</label>
               <textarea value={form.styleGuide} onChange={e => set('styleGuide', e.target.value)} rows={3} className={inputCls} /></div>
-            <div><label className="block text-xs font-medium text-gray-700 mb-1">Shipping & Returns (one per line)</label>
+            <div><label className="block text-xs font-medium text-gray-tooltip mb-1">Shipping & Returns (one per line)</label>
               <textarea value={form.shippingInfo} onChange={e => set('shippingInfo', e.target.value)} rows={3} className={inputCls} /></div>
           </div>
         </div>
@@ -389,6 +449,19 @@ export default function VariableProductForm({ initial, id, collections, initialV
               <option value="">No size guide</option>
               {sizeGuides.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
+            {selectedGuide && (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500">{selectedGuide.unit} · {selectedGuide.columns.join(', ')}</p>
+                {selectedGuide.rows.length > 0 && variants.length > 0 && (
+                  <button
+                    onClick={() => importSizesToAll(selectedGuide)}
+                    className="w-full flex items-center justify-center gap-1.5 text-xs px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Import to all variants ({selectedGuide.rows.length} sizes)
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">

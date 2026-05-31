@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { adminFetch } from '@/lib/api'
 import { slugify } from '@/lib/utils'
-import { Plus, Trash2, Upload, X } from 'lucide-react'
+import { Plus, Trash2, Upload, X, Download } from 'lucide-react'
 
 interface Collection { id: string; name: string }
 interface Category { id: string; name: string; skuPrefix?: string | null }
@@ -45,6 +45,7 @@ export default function SingleProductForm({ initial, id, collections }: {
   })
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const [error, setError] = useState('')
   const [newSize, setNewSize] = useState({ size: '', stock: 0 })
   const [skuLoading, setSkuLoading] = useState(false)
@@ -55,10 +56,8 @@ export default function SingleProductForm({ initial, id, collections }: {
   }, [])
 
   const set = (k: keyof FormData, v: unknown) => setForm(f => ({ ...f, [k]: v }))
-
   const handleNameChange = (v: string) => { set('name', v); set('slug', slugify(v)) }
 
-  // Auto-generate SKU when category changes
   const handleCategoryChange = async (catId: string) => {
     set('categoryId', catId)
     if (!catId) { set('itemCode', ''); return }
@@ -67,29 +66,46 @@ export default function SingleProductForm({ initial, id, collections }: {
       const cat = categories.find(c => c.id === catId)
       const catPrefix = cat?.skuPrefix || cat?.name[0].toUpperCase() || 'X'
       const res = await adminFetch('/api/products/next-sku-number')
-      const { padded } = res.data
-      set('itemCode', `AC-${catPrefix}-S-${padded}`)
+      set('itemCode', `AC-${catPrefix}-S-${res.data.padded}`)
     } catch { /* keep existing */ }
     setSkuLoading(false)
   }
 
-  const uploadImage = async (file: File) => {
+  const uploadImages = async (files: File[]) => {
+    if (!files.length) return
     setUploading(true)
-    const fd = new FormData(); fd.append('file', file)
     const token = localStorage.getItem('admin_token')
-    const res = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd })
-    const data = await res.json()
-    if (data.success) set('images', [...form.images, { url: data.data.url, order: form.images.length }])
+    const results = await Promise.allSettled(
+      files.map(async (file) => {
+        const fd = new FormData(); fd.append('file', file)
+        const res = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd })
+        const data = await res.json()
+        if (!data.success) throw new Error(data.message || 'Upload failed')
+        return data.data.url as string
+      })
+    )
+    const urls = results.filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled').map(r => r.value)
+    setForm(f => ({ ...f, images: [...f.images, ...urls.map((url, i) => ({ url, order: f.images.length + i }))] }))
     setUploading(false)
   }
 
   const removeImage = (idx: number) => set('images', form.images.filter((_, i) => i !== idx).map((img, i) => ({ ...img, order: i })))
-  const addSize = () => { if (!newSize.size) return; set('sizes', [...form.sizes, { ...newSize }]); setNewSize({ size: '', stock: 0 }) }
+
+  const importSizesFromGuide = (guide: SizeGuide) => {
+    const imported = guide.rows.map(r => ({ size: r.size, stock: 0 }))
+    set('sizes', imported)
+  }
+
+  const addSize = () => { if (!newSize.size.trim()) return; set('sizes', [...form.sizes, { ...newSize }]); setNewSize({ size: '', stock: 0 }) }
   const removeSize = (idx: number) => set('sizes', form.sizes.filter((_, i) => i !== idx))
   const toggleCollection = (cid: string) => set('collectionIds', form.collectionIds.includes(cid) ? form.collectionIds.filter(c => c !== cid) : [...form.collectionIds, cid])
 
   const save = async () => {
-    setSaving(true); setError('')
+    setError('')
+    if (!form.name.trim()) { setError('Product name is required.'); return }
+    if (!form.slug.trim()) { setError('Slug is required.'); return }
+    if (!form.categoryId) { setError('Please select a category.'); return }
+    setSaving(true)
     try {
       const payload = {
         productType: 'single',
@@ -113,17 +129,17 @@ export default function SingleProductForm({ initial, id, collections }: {
         images: form.images,
         sizes: form.sizes,
         collectionIds: form.collectionIds,
-        // Single product color stored as one colorVariant entry (hex only, no sku)
         colorVariants: [{ colorHex: form.colorHex, sku: form.itemCode || null, images: [], sizes: form.sizes }],
       }
       if (id) await adminFetch(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
       else await adminFetch('/api/products', { method: 'POST', body: JSON.stringify(payload) })
       router.push('/products')
-    } catch (err) { setError(err instanceof Error ? err.message : 'Save failed') }
+    } catch (err) { setError(err instanceof Error ? err.message : 'Save failed. Please try again.') }
     setSaving(false)
   }
 
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
+  const selectedGuide = sizeGuides.find(g => g.id === form.sizeGuideId)
 
   return (
     <div className="p-8">
@@ -137,7 +153,7 @@ export default function SingleProductForm({ initial, id, collections }: {
           <button onClick={save} disabled={saving} className="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">{saving ? 'Saving…' : 'Save Product'}</button>
         </div>
       </div>
-      {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
+      {error && <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{error}</div>}
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 space-y-6">
@@ -145,9 +161,8 @@ export default function SingleProductForm({ initial, id, collections }: {
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="font-semibold text-gray-900">Basic Information</h2>
 
-            {/* Category first — needed to build SKU */}
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Category *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Category <span className="text-red-500">*</span></label>
               <select value={form.categoryId} onChange={e => handleCategoryChange(e.target.value)} className={inputCls}>
                 <option value="">Select category first</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -155,13 +170,13 @@ export default function SingleProductForm({ initial, id, collections }: {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Product Name *</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Product Name <span className="text-red-500">*</span></label>
               <input value={form.name} onChange={e => handleNameChange(e.target.value)} className={inputCls} placeholder="e.g. Classic White Tee" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Slug *</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Slug <span className="text-red-500">*</span></label>
                 <input value={form.slug} onChange={e => set('slug', e.target.value)} className={inputCls} />
               </div>
               <div>
@@ -172,7 +187,6 @@ export default function SingleProductForm({ initial, id, collections }: {
               </div>
             </div>
 
-            {/* Color */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Color</label>
               <div className="flex items-center gap-3">
@@ -219,24 +233,68 @@ export default function SingleProductForm({ initial, id, collections }: {
           {/* Images */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="font-semibold text-gray-900">Images</h2>
-            <div className="flex flex-wrap gap-3">
-              {form.images.map((img, i) => (
-                <div key={i} className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 group">
-                  <Image src={img.url} alt="" fill className="object-cover" />
-                  <button onClick={() => removeImage(i)} className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center"><X className="w-3 h-3" /></button>
+
+            {form.images.length > 0 && (
+              <div className="flex flex-wrap gap-3">
+                {form.images.map((img, i) => (
+                  <div key={i} className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 group">
+                    <Image src={img.url} alt="" fill className="object-cover" />
+                    <button onClick={() => removeImage(i)} className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div
+              onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
+              onDragLeave={e => { e.preventDefault(); setIsDragging(false) }}
+              onDrop={e => {
+                e.preventDefault(); setIsDragging(false)
+                const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+                uploadImages(files)
+              }}
+              onClick={() => !uploading && fileRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer select-none transition-all ${
+                isDragging ? 'border-black bg-black/5' :
+                uploading ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed' :
+                'border-gray-300 hover:border-gray-500 hover:bg-gray-50/50'
+              }`}
+            >
+              {uploading ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-700 rounded-full animate-spin" />
+                  <p className="text-sm text-gray-500">Uploading…</p>
                 </div>
-              ))}
-              <button onClick={() => fileRef.current?.click()} disabled={uploading}
-                className="w-24 h-24 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-gray-400 disabled:opacity-50">
-                {uploading ? <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" /> : <><Upload className="w-4 h-4" /><span className="text-xs">Upload</span></>}
-              </button>
+              ) : (
+                <div className="flex flex-col items-center gap-2 pointer-events-none">
+                  <Upload className="w-6 h-6 text-gray-400" />
+                  <p className="text-sm font-medium text-gray-600">Drag & drop images here</p>
+                  <p className="text-xs text-gray-400">or click to browse · multiple files supported</p>
+                </div>
+              )}
             </div>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0])} />
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+              onChange={e => e.target.files && uploadImages(Array.from(e.target.files))} />
           </div>
 
-          {/* Sizes */}
+          {/* Sizes & Stock */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-            <h2 className="font-semibold text-gray-900">Sizes & Stock</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900">Sizes & Stock</h2>
+              {selectedGuide && selectedGuide.rows.length > 0 && (
+                <button
+                  onClick={() => importSizesFromGuide(selectedGuide)}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-600"
+                >
+                  <Download className="w-3.5 h-3.5" /> Import from size guide
+                </button>
+              )}
+            </div>
+            {!selectedGuide && (
+              <p className="text-xs text-gray-400">Select a size guide in the sidebar to enable size import.</p>
+            )}
             {form.sizes.length > 0 && (
               <table className="w-full text-sm">
                 <thead><tr className="bg-gray-50 border-b border-gray-200">
@@ -299,10 +357,19 @@ export default function SingleProductForm({ initial, id, collections }: {
               <option value="">No size guide</option>
               {sizeGuides.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
-            {form.sizeGuideId && (() => {
-              const guide = sizeGuides.find(g => g.id === form.sizeGuideId)
-              return guide ? <p className="text-xs text-gray-500">{guide.unit} · {guide.columns.join(', ')}</p> : null
-            })()}
+            {selectedGuide && (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500">{selectedGuide.unit} · {selectedGuide.columns.join(', ')}</p>
+                {selectedGuide.rows.length > 0 && (
+                  <button
+                    onClick={() => importSizesFromGuide(selectedGuide)}
+                    className="w-full flex items-center justify-center gap-1.5 text-xs px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Import Sizes ({selectedGuide.rows.length})
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">

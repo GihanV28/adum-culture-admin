@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAdminFromRequest } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 
 const variantImageSchema = z.object({ url: z.string(), order: z.number() })
 const variantSizeSchema = z.object({ size: z.string(), stock: z.number() })
@@ -96,9 +97,18 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     })
     return NextResponse.json({ success: true, data: { product } })
   } catch (err) {
-    if (err instanceof z.ZodError) return NextResponse.json({ success: false, errors: err.errors }, { status: 400 })
+    if (err instanceof z.ZodError) {
+      const first = err.errors[0]
+      const field = first.path.join('.')
+      return NextResponse.json({ success: false, message: `${field ? field + ': ' : ''}${first.message}`, errors: err.errors }, { status: 400 })
+    }
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      const target = (err.meta?.target as string[] | undefined)?.[0] ?? 'field'
+      const label = target === 'slug' ? 'slug' : target === 'itemCode' ? 'SKU (item code)' : target
+      return NextResponse.json({ success: false, message: `A product with this ${label} already exists. Please use a different ${label}.` }, { status: 400 })
+    }
     console.error(err)
-    return NextResponse.json({ success: false, message: 'Failed to update.' }, { status: 500 })
+    return NextResponse.json({ success: false, message: 'Failed to update product. Please try again or contact support.' }, { status: 500 })
   }
 }
 
