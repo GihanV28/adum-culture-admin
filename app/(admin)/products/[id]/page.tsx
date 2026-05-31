@@ -62,6 +62,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
           careInstructions: toStr(p.careInstructions),
           styleGuide: toStr(p.styleGuide),
           shippingInfo: toStr(p.shippingInfo),
+          returnInfo: toStr(p.returnInfo),
           collectionIds: (p.collections as { collectionId: string }[])?.map(c => c.collectionId) ?? [],
         }}
       />
@@ -97,6 +98,7 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
         careInstructions: toStr(p.careInstructions),
         styleGuide: toStr(p.styleGuide),
         shippingInfo: toStr(p.shippingInfo),
+        returnInfo: toStr(p.returnInfo),
         images: (p.images as { url: string; order: number }[]) ?? [],
         sizes: (p.sizes as { size: string; stock: number }[])?.map(s => ({ size: s.size, stock: s.stock })) ?? [],
         collectionIds: (p.collections as { collectionId: string }[])?.map(c => c.collectionId) ?? [],

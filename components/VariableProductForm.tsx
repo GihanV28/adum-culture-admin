@@ -51,7 +51,7 @@ interface FormData {
   status: string; featured: boolean; newArrival: boolean; bestSeller: boolean
   minStock: number; categoryId: string; sizeGuideId: string; productNotes: string
   modelDetails: string; material: string
-  careInstructions: string; styleGuide: string; shippingInfo: string
+  careInstructions: string; styleGuide: string; shippingInfo: string; returnInfo: string
   collectionIds: string[]
 }
 
@@ -70,7 +70,7 @@ export default function VariableProductForm({ initial, id, collections, initialV
     status: 'published', featured: false, newArrival: false, bestSeller: false,
     minStock: 5, categoryId: '', sizeGuideId: '', productNotes: '',
     modelDetails: '', material: '',
-    careInstructions: '', styleGuide: '', shippingInfo: '',
+    careInstructions: '', styleGuide: '', shippingInfo: '', returnInfo: '',
     collectionIds: [],
     ...initial,
   })
@@ -230,6 +230,7 @@ export default function VariableProductForm({ initial, id, collections, initialV
         careInstructions: form.careInstructions ? form.careInstructions.split('\n').filter(Boolean) : [],
         styleGuide: form.styleGuide ? form.styleGuide.split('\n').filter(Boolean) : [],
         shippingInfo: form.shippingInfo ? form.shippingInfo.split('\n').filter(Boolean) : [],
+        returnInfo: form.returnInfo ? form.returnInfo.split('\n').filter(Boolean) : [],
         images: [], sizes: [],
         collectionIds: form.collectionIds,
         colorVariants: variants.map(v => ({ colorHex: v.colorHex, sku: v.sku, images: v.images, sizes: v.sizes })),
@@ -461,8 +462,14 @@ export default function VariableProductForm({ initial, id, collections, initialV
               <textarea value={form.careInstructions} onChange={e => set('careInstructions', e.target.value)} rows={3} className={inputCls} /></div>
             <div><label className="block text-xs font-medium text-gray-700 mb-1">Style Guide (one per line)</label>
               <textarea value={form.styleGuide} onChange={e => set('styleGuide', e.target.value)} rows={3} className={inputCls} /></div>
-            <div><label className="block text-xs font-medium text-gray-tooltip mb-1">Shipping & Returns (one per line)</label>
-              <textarea value={form.shippingInfo} onChange={e => set('shippingInfo', e.target.value)} rows={3} className={inputCls} /></div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Shipping Policy <span className="font-normal text-gray-400">(one point per line)</span></label>
+              <textarea value={form.shippingInfo} onChange={e => set('shippingInfo', e.target.value)} rows={3} className={inputCls} placeholder="Dispatched within 48 hours (Sri Lanka)..." />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Returns & Exchange Policy <span className="font-normal text-gray-400">(one point per line)</span></label>
+              <textarea value={form.returnInfo} onChange={e => set('returnInfo', e.target.value)} rows={3} className={inputCls} placeholder="7 days from delivery to request an exchange..." />
+            </div>
           </div>
         </div>
 

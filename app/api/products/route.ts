@@ -37,6 +37,7 @@ const schema = z.object({
   careInstructions: z.array(z.string()).default([]),
   styleGuide: z.array(z.string()).default([]),
   shippingInfo: z.array(z.string()).default([]),
+  returnInfo: z.array(z.string()).default([]),
   // Single product: images in ProductImage table, one colorVariant entry
   images: z.array(variantImageSchema).default([]),
   sizes: z.array(variantSizeSchema).default([]),
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
         categoryId: body.categoryId || null, sizeGuideId: body.sizeGuideId || null,
         productNotes: body.productNotes || null,
         colors, modelDetails: body.modelDetails, material: body.material,
-        careInstructions: body.careInstructions, styleGuide: body.styleGuide, shippingInfo: body.shippingInfo,
+        careInstructions: body.careInstructions, styleGuide: body.styleGuide, shippingInfo: body.shippingInfo, returnInfo: body.returnInfo,
         colorVariants: body.colorVariants,
         // Single products use ProductImage + ProductSize tables; variable products use colorVariants JSON
         images: body.productType === 'single' ? { create: body.images } : undefined,

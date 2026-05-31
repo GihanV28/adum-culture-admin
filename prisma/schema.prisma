@@ -114,6 +114,7 @@ model Product {
   careInstructions Json?
   styleGuide       Json?
   shippingInfo     Json?
+  returnInfo       Json?
   barcode          String?
   batchNumber      String?
   categoryId       String?
