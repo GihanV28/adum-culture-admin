@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { Plus, Pencil, Trash2, X, Check, ImageIcon, Package, User, Phone, CalendarDays, Shirt } from 'lucide-react'
 import { getFabrics, addFabric, updateFabric, deleteFabric, type Fabric } from '@/lib/costcal-storage'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -42,7 +42,9 @@ export default function FabricDirectory() {
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null)
   const [pendingSlot, setPendingSlot] = useState(0)
   const [isDraggingFabricImg, setIsDraggingFabricImg] = useState(false)
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const supplierRef = useRef<HTMLDivElement>(null)
 
   const load = async (force = false) => {
     setFabricsLoading(true)
@@ -50,6 +52,28 @@ export default function FabricDirectory() {
     setFabricsLoading(false)
   }
   useEffect(() => { load() }, [])
+
+  // Close supplier dropdown on outside click
+  useEffect(() => {
+    if (!showSupplierDropdown) return
+    const handler = (e: MouseEvent) => {
+      if (supplierRef.current && !supplierRef.current.contains(e.target as Node)) setShowSupplierDropdown(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showSupplierDropdown])
+
+  // Unique suppliers from existing fabrics (name + mobile pairs)
+  const supplierSuggestions = useMemo(() => {
+    const seen = new Set<string>()
+    return fabrics.reduce<{ name: string; mobile: string }[]>((acc, f) => {
+      if (f.supplierName && !seen.has(f.supplierName)) {
+        seen.add(f.supplierName)
+        acc.push({ name: f.supplierName, mobile: f.supplierMobile ?? '' })
+      }
+      return acc
+    }, []).sort((a, b) => a.name.localeCompare(b.name))
+  }, [fabrics])
 
   const set = (patch: Partial<FormState>) => setForm(f => ({ ...f, ...patch }))
 
@@ -194,9 +218,34 @@ export default function FabricDirectory() {
 
             {/* Supplier Name + Mobile */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
+              <div className="relative" ref={supplierRef}>
                 <label className={labelCls}>Supplier Name *</label>
-                <input value={form.supplierName} onChange={e => set({ supplierName: e.target.value })} className={inputCls} placeholder="e.g. Textile Plus" />
+                <input
+                  value={form.supplierName}
+                  onChange={e => { set({ supplierName: e.target.value }); setShowSupplierDropdown(true) }}
+                  onFocus={() => setShowSupplierDropdown(true)}
+                  className={inputCls}
+                  placeholder="e.g. Textile Plus"
+                  autoComplete="off"
+                />
+                {showSupplierDropdown && supplierSuggestions.filter(s => s.name.toLowerCase().includes((form.supplierName || '').toLowerCase())).length > 0 && (
+                  <div className="absolute z-20 left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-44 overflow-y-auto">
+                    {supplierSuggestions
+                      .filter(s => s.name.toLowerCase().includes((form.supplierName || '').toLowerCase()))
+                      .map(s => (
+                        <button
+                          key={s.name}
+                          type="button"
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => { set({ supplierName: s.name, supplierMobile: s.mobile || form.supplierMobile }); setShowSupplierDropdown(false) }}
+                          className="w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-gray-50 text-left border-b border-gray-50 last:border-0"
+                        >
+                          <span className="font-medium text-gray-900">{s.name}</span>
+                          {s.mobile && <span className="text-xs text-gray-400">{s.mobile}</span>}
+                        </button>
+                      ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className={labelCls}>Supplier Mobile <span className="font-normal text-gray-400">(optional)</span></label>
