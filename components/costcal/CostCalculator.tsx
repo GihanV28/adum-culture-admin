@@ -11,7 +11,7 @@ type ProfitUnit = 'PERCENT' | 'LKR'
 interface Product { id: string; name: string; itemCode?: string | null; status?: string }
 interface FabricEntry { id: string; fabricId: string; fabricName: string; unit: string; quantity: number; unitCost: number; subtotal: number }
 interface OtherCost { id: string; label: string; amount: number }
-interface CostType { id: string; name: string; description?: string | null }
+interface CostType { id: string; name: string; description?: string | null; defaultPrice?: number }
 
 const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
@@ -610,7 +610,7 @@ export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: 
                     {costTypes
                       .filter(t => t.name.toLowerCase().includes(costTypeSearch.toLowerCase()))
                       .map(t => (
-                        <button key={t.id} onClick={() => { setSelectedCostType(t); setCostTypeDropdown(false); setCostTypeSearch('') }}
+                        <button key={t.id} onClick={() => { setSelectedCostType(t); setCostTypeDropdown(false); setCostTypeSearch(''); if (t.defaultPrice && t.defaultPrice > 0) setNewCostAmount(String(t.defaultPrice)) }}
                           className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50">
                           <span className="font-medium text-gray-900 block">{t.name}</span>
                           {t.description && <span className="text-xs text-gray-400">{t.description}</span>}

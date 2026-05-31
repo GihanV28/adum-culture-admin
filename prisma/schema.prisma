@@ -669,8 +669,9 @@ model CostCalCosting {
 
 
 model CostCalProductionCostType {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
+  id           String   @id @default(cuid())
+  name         String   @unique
+  description  String?
+  defaultPrice Float    @default(0)
+  createdAt    DateTime @default(now())
 }

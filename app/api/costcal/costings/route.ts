@@ -77,6 +77,18 @@ export async function POST(req: NextRequest) {
     },
   })
 
+  // Write back last-used price to each cost type (for auto-fill on next use)
+  if (Array.isArray(otherCosts) && otherCosts.length > 0) {
+    await Promise.all(
+      (otherCosts as { label: string; amount: number }[]).map(c =>
+        db.costCalProductionCostType.updateMany({
+          where: { name: c.label },
+          data: { defaultPrice: c.amount },
+        })
+      )
+    )
+  }
+
   // Write prices + status back to Product
   await db.product.update({
     where: { id: productId },
