@@ -37,6 +37,7 @@ export default function FabricDirectory() {
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [uploadingSlot, setUploadingSlot] = useState<number | null>(null)
   const [pendingSlot, setPendingSlot] = useState(0)
   const [isDraggingFabricImg, setIsDraggingFabricImg] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -46,6 +47,26 @@ export default function FabricDirectory() {
 
   const set = (patch: Partial<FormState>) => setForm(f => ({ ...f, ...patch }))
 
+  const uploadToSupabase = async (file: File, slot: number) => {
+    if (!file.type.startsWith('image/')) return
+    setUploadingSlot(slot)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const token = localStorage.getItem('admin_token')
+      const res = await fetch('/api/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd })
+      const data = await res.json()
+      if (data.success) {
+        setForm(f => {
+          const imgs = [...f.images]
+          imgs[slot] = data.data.url
+          return { ...f, images: imgs }
+        })
+      }
+    } finally {
+      setUploadingSlot(null)
+    }
+  }
+
   const openImagePicker = (slot: number) => {
     setPendingSlot(slot)
     if (fileRef.current) { fileRef.current.value = ''; fileRef.current.click() }
@@ -54,15 +75,7 @@ export default function FabricDirectory() {
   const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => {
-      setForm(f => {
-        const imgs = [...f.images]
-        imgs[pendingSlot] = ev.target?.result as string
-        return { ...f, images: imgs }
-      })
-    }
-    reader.readAsDataURL(file)
+    uploadToSupabase(file, pendingSlot)
   }
 
   const removeImage = (i: number) => {
@@ -73,12 +86,8 @@ export default function FabricDirectory() {
     if (!file.type.startsWith('image/')) return
     setForm(f => {
       if (f.images.length >= MAX_IMAGES) return f
-      const reader = new FileReader()
-      reader.onload = ev => setForm(prev => {
-        if (prev.images.length >= MAX_IMAGES) return prev
-        return { ...prev, images: [...prev.images, ev.target?.result as string] }
-      })
-      reader.readAsDataURL(file)
+      const slot = f.images.length
+      uploadToSupabase(file, slot)
       return f
     })
   }
@@ -235,6 +244,15 @@ export default function FabricDirectory() {
                 {Array.from({ length: MAX_IMAGES }).map((_, i) => {
                   const src = form.images[i]
                   const isNextSlot = !src && form.images.length === i
+                  const isUploading = uploadingSlot === i
+
+                  if (isUploading) {
+                    return (
+                      <div key={i} className="w-20 h-20 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center shrink-0">
+                        <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-700 rounded-full animate-spin" />
+                      </div>
+                    )
+                  }
 
                   if (src) {
                     return (
@@ -258,8 +276,8 @@ export default function FabricDirectory() {
                         onDragOver={e => { e.preventDefault(); setIsDraggingFabricImg(true) }}
                         onDragLeave={e => { e.preventDefault(); setIsDraggingFabricImg(false) }}
                         onDrop={e => { e.preventDefault(); setIsDraggingFabricImg(false); const f = e.dataTransfer.files[0]; if (f) addImageFromFile(f) }}
-                        onClick={() => openImagePicker(i)}
-                        className={`w-20 h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 cursor-pointer select-none shrink-0 transition-colors ${isDraggingFabricImg ? 'border-black bg-black/5 text-black' : 'border-gray-300 text-gray-400 hover:border-gray-500 hover:bg-gray-50'}`}
+                        onClick={() => !uploadingSlot && openImagePicker(i)}
+                        className={`w-20 h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 select-none shrink-0 transition-colors ${uploadingSlot !== null ? 'opacity-50 cursor-not-allowed border-gray-200' : isDraggingFabricImg ? 'border-black bg-black/5 text-black cursor-pointer' : 'border-gray-300 text-gray-400 hover:border-gray-500 hover:bg-gray-50 cursor-pointer'}`}
                       >
                         <Plus className="w-5 h-5" />
                         <span className="text-[10px]">Add</span>
@@ -285,7 +303,7 @@ export default function FabricDirectory() {
             <button onClick={cancel} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
             <button
               onClick={save}
-              disabled={!form.name || !form.costPerUnit || !form.supplierName || saving}
+              disabled={!form.name || !form.costPerUnit || !form.supplierName || saving || uploadingSlot !== null}
               className="flex items-center gap-2 px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-40"
             >
               <Check className="w-4 h-4" /> {saving ? 'Saving…' : 'Save Fabric'}
