@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { Plus, Trash2, ChevronDown, Save, AlertCircle, Search, Package, X, Pencil, Check } from 'lucide-react'
 import { getFabrics, type Fabric } from '@/lib/costcal-storage'
 import { adminFetch } from '@/lib/api'
+import { invalidateCache } from '@/lib/admin-cache'
 
 type ProfitMode = 'PERCENT' | 'FIXED'
 type ProfitUnit = 'PERCENT' | 'LKR'
@@ -282,6 +283,7 @@ export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: 
           status: 'draft',
         }),
       })
+      invalidateCache('products')
       if (onSaved) onSaved()
     } finally {
       setSaving(false)

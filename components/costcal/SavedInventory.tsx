@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Trash2, ImageIcon, Pencil, Check, X, Calculator } from 'lucide-react'
 import { adminFetch } from '@/lib/api'
+import { invalidateCache } from '@/lib/admin-cache'
 import { Skeleton } from '@/components/ui/Skeleton'
 
 interface ProductInfo {
@@ -116,6 +117,7 @@ export default function SavedInventory({ onEditInCalculator }: { onEditInCalcula
           status: row.status,
         }),
       })
+      invalidateCache('products')
       await load()
       cancelEdit(id)
     } finally {
