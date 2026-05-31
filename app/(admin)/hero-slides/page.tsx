@@ -124,6 +124,7 @@ export default function HeroSlidesPage() {
   const [uploading, setUploading] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [showReorder, setShowReorder] = useState(false)
+  const [draggingField, setDraggingField] = useState<string | null>(null)
   const desktopRef = useRef<HTMLInputElement>(null)
   const mobileRef = useRef<HTMLInputElement>(null)
 
@@ -184,11 +185,16 @@ export default function HeroSlidesPage() {
                 <button onClick={() => setForm(f => ({ ...f, desktopImageUrl: '' }))} className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center"><X className="w-3.5 h-3.5" /></button>
               </div>
             ) : (
-              <button onClick={() => desktopRef.current?.click()} disabled={uploading === 'desktopImageUrl'}
-                className="w-full h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-gray-400">
+              <div
+                onDragOver={e => { e.preventDefault(); setDraggingField('desktop') }}
+                onDragLeave={e => { e.preventDefault(); setDraggingField(null) }}
+                onDrop={e => { e.preventDefault(); setDraggingField(null); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('image/')) uploadImage(f, 'desktopImageUrl') }}
+                onClick={() => uploading !== 'desktopImageUrl' && desktopRef.current?.click()}
+                className={`w-full h-32 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer select-none transition-colors ${draggingField === 'desktop' ? 'border-black bg-black/5' : uploading === 'desktopImageUrl' ? 'border-gray-200 opacity-60 cursor-not-allowed' : 'border-gray-300 text-gray-400 hover:border-gray-500'}`}
+              >
                 <Upload className="w-5 h-5" />
-                <span className="text-xs">{uploading === 'desktopImageUrl' ? 'Uploading…' : 'Upload desktop image'}</span>
-              </button>
+                <span className="text-xs">{uploading === 'desktopImageUrl' ? 'Uploading…' : 'Drag & drop or click to upload'}</span>
+              </div>
             )}
             <input ref={desktopRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], 'desktopImageUrl')} />
           </div>
@@ -201,11 +207,16 @@ export default function HeroSlidesPage() {
                 <button onClick={() => setForm(f => ({ ...f, mobileImageUrl: '' }))} className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center"><X className="w-3.5 h-3.5" /></button>
               </div>
             ) : (
-              <button onClick={() => mobileRef.current?.click()} disabled={uploading === 'mobileImageUrl'}
-                className="w-full h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-gray-400">
+              <div
+                onDragOver={e => { e.preventDefault(); setDraggingField('mobile') }}
+                onDragLeave={e => { e.preventDefault(); setDraggingField(null) }}
+                onDrop={e => { e.preventDefault(); setDraggingField(null); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('image/')) uploadImage(f, 'mobileImageUrl') }}
+                onClick={() => uploading !== 'mobileImageUrl' && mobileRef.current?.click()}
+                className={`w-full h-32 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer select-none transition-colors ${draggingField === 'mobile' ? 'border-black bg-black/5' : uploading === 'mobileImageUrl' ? 'border-gray-200 opacity-60 cursor-not-allowed' : 'border-gray-300 text-gray-400 hover:border-gray-500'}`}
+              >
                 <Upload className="w-5 h-5" />
-                <span className="text-xs">{uploading === 'mobileImageUrl' ? 'Uploading…' : 'Upload mobile image'}</span>
-              </button>
+                <span className="text-xs">{uploading === 'mobileImageUrl' ? 'Uploading…' : 'Drag & drop or click to upload'}</span>
+              </div>
             )}
             <input ref={mobileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], 'mobileImageUrl')} />
           </div>

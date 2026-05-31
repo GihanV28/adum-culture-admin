@@ -133,6 +133,8 @@ export default function CollectionsPage() {
   const [uploading, setUploading] = useState(false)
   const [editUploading, setEditUploading] = useState(false)
   const [showReorder, setShowReorder] = useState(false)
+  const [isDraggingNew, setIsDraggingNew] = useState(false)
+  const [isDraggingEdit, setIsDraggingEdit] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const editFileRef = useRef<HTMLInputElement>(null)
 
@@ -200,14 +202,19 @@ export default function CollectionsPage() {
               </button>
             </div>
           ) : (
-            <button onClick={() => fileRef.current?.click()} disabled={uploading}
-              className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-gray-400 disabled:opacity-50 flex-shrink-0">
+            <div
+              onDragOver={e => { e.preventDefault(); setIsDraggingNew(true) }}
+              onDragLeave={e => { e.preventDefault(); setIsDraggingNew(false) }}
+              onDrop={e => { e.preventDefault(); setIsDraggingNew(false); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('image/')) uploadImage(f) }}
+              onClick={() => !uploading && fileRef.current?.click()}
+              className={`w-20 h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 cursor-pointer select-none flex-shrink-0 transition-colors ${isDraggingNew ? 'border-black bg-black/5' : uploading ? 'border-gray-200 opacity-60 cursor-not-allowed' : 'border-gray-300 text-gray-400 hover:border-gray-500'}`}
+            >
               {uploading
                 ? <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                : <><Upload className="w-4 h-4" /><span className="text-xs">Image</span></>}
-            </button>
+                : <><Upload className="w-4 h-4 text-gray-400" /><span className="text-xs text-gray-400">Image</span></>}
+            </div>
           )}
-          <p className="text-xs text-gray-400">Optional cover image shown on the storefront collection page.</p>
+          <p className="text-xs text-gray-400">Optional cover image. Drag & drop or click to browse.</p>
         </div>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0])} />
 
@@ -255,10 +262,15 @@ export default function CollectionsPage() {
                       </button>
                     </div>
                   ) : (
-                    <button onClick={() => editFileRef.current?.click()} disabled={editUploading}
-                      className="w-12 h-12 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:border-gray-400 disabled:opacity-50">
-                      {editUploading ? <div className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" /> : <Upload className="w-3 h-3" />}
-                    </button>
+                    <div
+                      onDragOver={e => { e.preventDefault(); setIsDraggingEdit(true) }}
+                      onDragLeave={e => { e.preventDefault(); setIsDraggingEdit(false) }}
+                      onDrop={e => { e.preventDefault(); setIsDraggingEdit(false); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('image/')) uploadImage(f, true) }}
+                      onClick={() => !editUploading && editFileRef.current?.click()}
+                      className={`w-12 h-12 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer select-none transition-colors ${isDraggingEdit ? 'border-black bg-black/5' : editUploading ? 'border-gray-200 opacity-60 cursor-not-allowed' : 'border-gray-300 text-gray-400 hover:border-gray-500'}`}
+                    >
+                      {editUploading ? <div className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" /> : <Upload className="w-3 h-3 text-gray-400" />}
+                    </div>
                   )}
                   <input ref={editFileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0], true)} />
                 </div>

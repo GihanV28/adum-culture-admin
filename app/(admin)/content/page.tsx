@@ -50,6 +50,7 @@ export default function ContentPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [isDraggingImage, setIsDraggingImage] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -224,12 +225,17 @@ export default function ContentPage() {
                             </button>
                           </div>
                         ) : (
-                          <button onClick={() => fileRef.current?.click()} disabled={uploading}
-                            className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-gray-400 disabled:opacity-50">
+                          <div
+                            onDragOver={e => { e.preventDefault(); setIsDraggingImage(true) }}
+                            onDragLeave={e => { e.preventDefault(); setIsDraggingImage(false) }}
+                            onDrop={e => { e.preventDefault(); setIsDraggingImage(false); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('image/')) uploadImage(f) }}
+                            onClick={() => !uploading && fileRef.current?.click()}
+                            className={`w-full h-24 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer select-none transition-colors ${isDraggingImage ? 'border-black bg-black/5' : uploading ? 'border-gray-200 opacity-60 cursor-not-allowed' : 'border-gray-300 text-gray-400 hover:border-gray-500'}`}
+                          >
                             {uploading
                               ? <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                              : <><Upload className="w-4 h-4" /> Upload image</>}
-                          </button>
+                              : <><Upload className="w-5 h-5" /><span className="text-xs">Drag & drop or click to upload</span></>}
+                          </div>
                         )}
                         <input ref={fileRef} type="file" accept="image/*" className="hidden"
                           onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0])} />
