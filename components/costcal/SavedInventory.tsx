@@ -27,6 +27,8 @@ interface Costing {
   bnplMerchant: number
   gatewayPerc: number
   vatPerc: number
+  deliveryTotal: number
+  deliveryMerchant: number
   // Calculated summary
   totalProductionCost: number
   netProfit: number

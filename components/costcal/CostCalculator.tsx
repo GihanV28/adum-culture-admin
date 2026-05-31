@@ -34,6 +34,8 @@ interface EditingCosting {
   bnplMerchant: number
   gatewayPerc: number
   vatPerc: number
+  deliveryTotal: number
+  deliveryMerchant: number
   originalPrice: number
   sellingPrice: number
   product?: { id: string; name: string; itemCode?: string | null } | null
@@ -125,13 +127,17 @@ export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: 
     setFabricEntries(editingCosting.fabricEntries.map(r => ({ ...r, id: uid() })))
     setPieces(String(editingCosting.pieces || ''))
     setOtherCosts(editingCosting.otherCosts.map(c => ({ ...c, id: uid() })))
-    setProfitMode((editingCosting.profitMode as ProfitMode) ?? 'PERCENT')
+    const mode = (editingCosting.profitMode as ProfitMode) ?? 'PERCENT'
+    setProfitMode(mode)
     setProfitUnit((editingCosting.profitUnit as ProfitUnit) ?? 'PERCENT')
-    setProfitValue(editingCosting.profitValue ? String(editingCosting.profitValue) : '')
-    setBnplTotal(editingCosting.bnplTotal ? String(editingCosting.bnplTotal) : '')
-    setBnplMerchant(editingCosting.bnplMerchant ? String(editingCosting.bnplMerchant) : '')
-    setGatewayPerc(editingCosting.gatewayPerc ? String(editingCosting.gatewayPerc) : '')
-    setVatPerc(editingCosting.vatPerc ? String(editingCosting.vatPerc) : '')
+    setProfitValue(editingCosting.profitValue > 0 ? String(editingCosting.profitValue) : '')
+    if (mode === 'FIXED') setManualPrice(String(editingCosting.sellingPrice || ''))
+    setBnplTotal(editingCosting.bnplTotal > 0 ? String(editingCosting.bnplTotal) : '')
+    setBnplMerchant(editingCosting.bnplMerchant > 0 ? String(editingCosting.bnplMerchant) : '')
+    setGatewayPerc(editingCosting.gatewayPerc > 0 ? String(editingCosting.gatewayPerc) : '')
+    setVatPerc(editingCosting.vatPerc > 0 ? String(editingCosting.vatPerc) : '')
+    setDeliveryTotal(editingCosting.deliveryTotal > 0 ? String(editingCosting.deliveryTotal) : '')
+    setDeliveryMerchant(editingCosting.deliveryMerchant > 0 ? String(editingCosting.deliveryMerchant) : '')
   }, [editingCosting])
 
   // Close cost-type dropdown on outside click
