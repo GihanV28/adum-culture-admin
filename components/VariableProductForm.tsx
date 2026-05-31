@@ -45,6 +45,25 @@ interface ColorVariant {
   sizes: SizeRow[]
 }
 
+const CARE_TEMPLATES = [
+  { label: '👗 Silk Evening Gown',     value: 'Clean: Dry clean only.\nStains: Dab immediately (never rub).\nProtect: Avoid direct sunlight and perfume.' },
+  { label: '👔 Oversized Linen Shirt',  value: 'Wash: Machine wash cold, inside out (short cycle).\nDry: Hang on a padded hanger.\nAvoid: Bleach and fabric softeners.' },
+  { label: '👖 Tailored Trousers',      value: 'Clean: Dry clean sparingly.\nMaintain: Air out between wears; hang by the waistband.\nAvoid: Machine washing and tumble drying.' },
+  { label: '🌸 Floral Summer Dress',    value: 'Wash: Hand wash warm with mild detergent.\nStains: Treat immediately without scrubbing.\nStore/Dry: Keep out of direct sun; use a breathable bag.' },
+]
+
+const DEFAULT_SHIPPING = `Dispatched within 48 hours (Sri Lanka) or 10–14 working days (international).
+Free standard shipping on orders over LKR 10,000.
+All orders are fully tracked.`
+
+const DEFAULT_RETURN = `7 days from delivery to request an exchange.
+Items must be in original condition with tags intact.
+Exchange process takes 7–10 working days.
+No exchanges on sale or discounted items.
+Refunds only for damaged, defective, or incorrect items — free return courier arranged.
+Refunds processed within 7 working days and clear in 3–5 working days.
+Contact before returning: info@adumculture.com or WhatsApp +94 76 061 3070.`
+
 interface FormData {
   name: string; slug: string; description: string
   price: number; comparePrice: number; costPrice: number
@@ -70,7 +89,7 @@ export default function VariableProductForm({ initial, id, collections, initialV
     status: 'published', featured: false, newArrival: false, bestSeller: false,
     minStock: 5, categoryId: '', sizeGuideId: '', productNotes: '',
     modelDetails: '', material: '',
-    careInstructions: '', styleGuide: '', shippingInfo: '', returnInfo: '',
+    careInstructions: '', styleGuide: '', shippingInfo: DEFAULT_SHIPPING, returnInfo: DEFAULT_RETURN,
     collectionIds: [],
     ...initial,
   })
@@ -458,8 +477,20 @@ export default function VariableProductForm({ initial, id, collections, initialV
           {/* Additional Info */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
             <h2 className="font-semibold text-gray-900">Additional Info</h2>
-            <div><label className="block text-xs font-medium text-gray-700 mb-1">Care Instructions (one per line)</label>
-              <textarea value={form.careInstructions} onChange={e => set('careInstructions', e.target.value)} rows={3} className={inputCls} /></div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-gray-700">Care Instructions <span className="font-normal text-gray-400">(one per line)</span></label>
+                <select
+                  defaultValue=""
+                  onChange={e => { if (e.target.value) { set('careInstructions', e.target.value); (e.target as HTMLSelectElement).value = '' } }}
+                  className="text-xs px-2 py-1 border border-gray-200 rounded-lg text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-black"
+                >
+                  <option value="">Apply template…</option>
+                  {CARE_TEMPLATES.map(t => <option key={t.label} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+              <textarea value={form.careInstructions} onChange={e => set('careInstructions', e.target.value)} rows={3} className={inputCls} />
+            </div>
             <div><label className="block text-xs font-medium text-gray-700 mb-1">Style Guide (one per line)</label>
               <textarea value={form.styleGuide} onChange={e => set('styleGuide', e.target.value)} rows={3} className={inputCls} /></div>
             <div>
