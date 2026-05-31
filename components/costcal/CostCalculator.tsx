@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { Plus, Trash2, ChevronDown, Save, AlertCircle, Search, Package, X } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Save, AlertCircle, Search, Package, X, Pencil, Check } from 'lucide-react'
 import { getFabrics, type Fabric } from '@/lib/costcal-storage'
 import { adminFetch } from '@/lib/api'
 
@@ -38,6 +38,8 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
 
   // Other costs
   const [otherCosts, setOtherCosts] = useState<OtherCost[]>([])
+  const [editingCostId, setEditingCostId] = useState<string | null>(null)
+  const [editingCostAmount, setEditingCostAmount] = useState('')
   const [costTypes, setCostTypes] = useState<CostType[]>([])
   const [costTypeSearch, setCostTypeSearch] = useState('')
   const [costTypeDropdown, setCostTypeDropdown] = useState(false)
@@ -484,10 +486,46 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
               {otherCosts.map(c => (
                 <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-100">
                   <span className="text-sm text-gray-700">{c.label}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium">LKR {fmt(c.amount)}</span>
-                    <button onClick={() => setOtherCosts(cs => cs.filter(x => x.id !== c.id))} className="text-gray-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
-                  </div>
+                  {editingCostId === c.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        value={editingCostAmount}
+                        onChange={e => setEditingCostAmount(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            const val = Number(editingCostAmount)
+                            if (!isNaN(val) && val >= 0) setOtherCosts(cs => cs.map(x => x.id === c.id ? { ...x, amount: val } : x))
+                            setEditingCostId(null)
+                          }
+                          if (e.key === 'Escape') setEditingCostId(null)
+                        }}
+                        autoFocus
+                        className="w-28 px-2 py-1 border border-gray-300 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-black"
+                      />
+                      <button
+                        onClick={() => {
+                          const val = Number(editingCostAmount)
+                          if (!isNaN(val) && val >= 0) setOtherCosts(cs => cs.map(x => x.id === c.id ? { ...x, amount: val } : x))
+                          setEditingCostId(null)
+                        }}
+                        className="text-green-600 hover:text-green-700"
+                      ><Check className="w-4 h-4" /></button>
+                      <button onClick={() => setEditingCostId(null)} className="text-gray-400 hover:text-gray-600">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">LKR {fmt(c.amount)}</span>
+                      <button
+                        onClick={() => { setEditingCostId(c.id); setEditingCostAmount(String(c.amount)) }}
+                        className="text-gray-300 hover:text-gray-600"
+                      ><Pencil className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setOtherCosts(cs => cs.filter(x => x.id !== c.id))} className="text-gray-300 hover:text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
