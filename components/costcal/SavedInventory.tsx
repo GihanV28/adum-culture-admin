@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Trash2, ImageIcon, Pencil, Check, X, ChevronDown } from 'lucide-react'
+import { Trash2, ImageIcon, Pencil, Check, X, Calculator } from 'lucide-react'
 import { adminFetch } from '@/lib/api'
 import { Skeleton } from '@/components/ui/Skeleton'
 
@@ -15,6 +15,18 @@ interface ProductInfo {
 interface Costing {
   id: string
   productId: string
+  // Raw calculator inputs (returned by GET /api/costcal/costings)
+  fabricEntries: { fabricId: string; fabricName: string; unit: string; quantity: number; unitCost: number; subtotal: number }[]
+  otherCosts: { label: string; amount: number }[]
+  pieces: number
+  profitMode: string
+  profitUnit: string
+  profitValue: number
+  bnplTotal: number
+  bnplMerchant: number
+  gatewayPerc: number
+  vatPerc: number
+  // Calculated summary
   totalProductionCost: number
   netProfit: number
   recommendedPrice: number
@@ -24,6 +36,8 @@ interface Costing {
   createdAt: number
   product?: ProductInfo | null
 }
+
+export type { Costing }
 
 interface EditingRow {
   originalPrice: string
@@ -293,6 +307,10 @@ export default function SavedInventory({ onEditInCalculator }: { onEditInCalcula
                           </>
                         ) : (
                           <>
+                            <button onClick={() => onEditInCalculator?.(c)} title="Recalculate in Cost Calculator"
+                              className="p-1.5 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50">
+                              <Calculator className="w-3.5 h-3.5" />
+                            </button>
                             <button onClick={() => startEdit(c)} title="Edit prices & status"
                               className="p-1.5 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100">
                               <Pencil className="w-3.5 h-3.5" />

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Layers, Calculator, Archive } from 'lucide-react'
+import type { Costing } from '@/components/costcal/SavedInventory'
 
 const FabricDirectory = dynamic(() => import('@/components/costcal/FabricDirectory'), { ssr: false })
 const CostCalculator = dynamic(() => import('@/components/costcal/CostCalculator'), { ssr: false })
@@ -18,6 +19,18 @@ const tabs = [
 export default function CostCalculatorPage() {
   const [activeTab, setActiveTab] = useState<Tab>('fabrics')
   const [inventoryKey, setInventoryKey] = useState(0)
+  const [editingCosting, setEditingCosting] = useState<Costing | null>(null)
+
+  const handleEditInCalculator = (costing: Costing) => {
+    setEditingCosting(costing)
+    setActiveTab('calculator')
+  }
+
+  const handleSaved = () => {
+    setEditingCosting(null)
+    setInventoryKey(k => k + 1)
+    setActiveTab('inventory')
+  }
 
   return (
     <div className="p-4 sm:p-8">
@@ -29,7 +42,7 @@ export default function CostCalculatorPage() {
       {/* Tab navigation */}
       <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-xl mb-6 sm:mb-8">
         {tabs.map(({ id, label, icon: Icon }) => (
-          <button key={id} onClick={() => setActiveTab(id)}
+          <button key={id} onClick={() => { setActiveTab(id); if (id !== 'calculator') setEditingCosting(null) }}
             className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
               activeTab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             }`}>
@@ -43,9 +56,15 @@ export default function CostCalculatorPage() {
       {/* Tab content */}
       {activeTab === 'fabrics' && <FabricDirectory />}
       {activeTab === 'calculator' && (
-        <CostCalculator onSaved={() => { setInventoryKey(k => k + 1); setActiveTab('inventory') }} />
+        <CostCalculator
+          key={editingCosting?.id ?? 'new'}
+          editingCosting={editingCosting}
+          onSaved={handleSaved}
+        />
       )}
-      {activeTab === 'inventory' && <SavedInventory key={inventoryKey} />}
+      {activeTab === 'inventory' && (
+        <SavedInventory key={inventoryKey} onEditInCalculator={handleEditInCalculator} />
+      )}
     </div>
   )
 }

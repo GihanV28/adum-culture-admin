@@ -20,7 +20,25 @@ const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft', published: 'Published', active: 'Active (ORM)', inactive: 'Inactive',
 }
 
-export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
+interface EditingCosting {
+  id: string
+  productId: string
+  fabricEntries: { fabricId: string; fabricName: string; unit: string; quantity: number; unitCost: number; subtotal: number }[]
+  otherCosts: { label: string; amount: number }[]
+  pieces: number
+  profitMode: string
+  profitUnit: string
+  profitValue: number
+  bnplTotal: number
+  bnplMerchant: number
+  gatewayPerc: number
+  vatPerc: number
+  originalPrice: number
+  sellingPrice: number
+  product?: { id: string; name: string; itemCode?: string | null } | null
+}
+
+export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: () => void; editingCosting?: EditingCosting | null }) {
   // Product selection
   const [products, setProducts] = useState<Product[]>([])
   const [productSearch, setProductSearch] = useState('')
@@ -95,6 +113,25 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
       .catch(() => setProductsError(true))
       .finally(() => setProductsLoading(false))
   }, [])
+
+  // Pre-load form when editing an existing costing
+  useEffect(() => {
+    if (!editingCosting) return
+    if (editingCosting.product) {
+      setSelectedProduct({ id: editingCosting.product.id, name: editingCosting.product.name, itemCode: editingCosting.product.itemCode })
+      setExistingCosting(false) // already editing — skip replace prompt
+    }
+    setFabricEntries(editingCosting.fabricEntries.map(r => ({ ...r, id: uid() })))
+    setPieces(String(editingCosting.pieces || ''))
+    setOtherCosts(editingCosting.otherCosts.map(c => ({ ...c, id: uid() })))
+    setProfitMode((editingCosting.profitMode as ProfitMode) ?? 'PERCENT')
+    setProfitUnit((editingCosting.profitUnit as ProfitUnit) ?? 'PERCENT')
+    setProfitValue(editingCosting.profitValue ? String(editingCosting.profitValue) : '')
+    setBnplTotal(editingCosting.bnplTotal ? String(editingCosting.bnplTotal) : '')
+    setBnplMerchant(editingCosting.bnplMerchant ? String(editingCosting.bnplMerchant) : '')
+    setGatewayPerc(editingCosting.gatewayPerc ? String(editingCosting.gatewayPerc) : '')
+    setVatPerc(editingCosting.vatPerc ? String(editingCosting.vatPerc) : '')
+  }, [editingCosting])
 
   // Close cost-type dropdown on outside click
   useEffect(() => {
@@ -328,20 +365,32 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
           <h3 className="font-semibold text-gray-900 mb-4">1. Select Product</h3>
           <div className="relative" ref={productDropdownRef}>
             <label className={labelCls}>Product *</label>
-            <button type="button" onClick={() => setProductDropdown(d => !d)}
-              className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white">
-              {selectedProduct ? (
-                <span className="flex items-center gap-2">
-                  <Package className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                  <span className="font-medium text-gray-900">{selectedProduct.name}</span>
-                  {selectedProduct.itemCode && <span className="text-gray-400 text-xs">{selectedProduct.itemCode}</span>}
-                  {existingCosting && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">Has costing</span>}
-                </span>
-              ) : (
-                <span className="text-gray-400">Choose a product…</span>
-              )}
-              <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
-            </button>
+            {editingCosting ? (
+              // Locked — editing an existing costing, product cannot change
+              <div className="w-full flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-700">
+                <Package className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <span className="font-medium">{selectedProduct?.name ?? editingCosting.product?.name}</span>
+                {(selectedProduct?.itemCode ?? editingCosting.product?.itemCode) && (
+                  <span className="text-gray-400 text-xs">{selectedProduct?.itemCode ?? editingCosting.product?.itemCode}</span>
+                )}
+                <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Editing</span>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setProductDropdown(d => !d)}
+                className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white">
+                {selectedProduct ? (
+                  <span className="flex items-center gap-2">
+                    <Package className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <span className="font-medium text-gray-900">{selectedProduct.name}</span>
+                    {selectedProduct.itemCode && <span className="text-gray-400 text-xs">{selectedProduct.itemCode}</span>}
+                    {existingCosting && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">Has costing</span>}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">Choose a product…</span>
+                )}
+                <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+              </button>
+            )}
             {productDropdown && (
               <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
                 <div className="p-2 border-b border-gray-100 flex items-center gap-2 px-3">
@@ -666,7 +715,7 @@ export default function CostCalculator({ onSaved }: { onSaved?: () => void }) {
               <button onClick={handleAddToInventory} disabled={!canSave || saving}
                 className="flex items-center gap-2 px-6 py-2.5 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-40 shrink-0 transition-colors">
                 <Save className="w-4 h-4" />
-                {saving ? 'Saving…' : existingCosting ? 'Update Inventory' : 'Add to Inventory'}
+                {saving ? 'Saving…' : editingCosting ? 'Update Costing' : existingCosting ? 'Update Inventory' : 'Add to Inventory'}
               </button>
             </div>
           )}
