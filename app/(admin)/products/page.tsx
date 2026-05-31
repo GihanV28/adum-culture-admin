@@ -5,8 +5,15 @@ import Image from 'next/image'
 import { adminFetch } from '@/lib/api'
 import { getCached, setCached, invalidateCache } from '@/lib/admin-cache'
 import { formatCurrency } from '@/lib/utils'
-import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, ArrowUpDown, GripVertical, X } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove, SortableContext, useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface Product { id: string; name: string; slug: string; itemCode?: string | null; productType?: string; price: number; status: string; featured: boolean; images: { url: string }[]; sizes: { size: string; stock: number }[]; colorVariants?: { images?: { url: string; order: number }[]; sizes: { stock: number }[] }[] }
 
@@ -33,10 +40,95 @@ function ProductsSkeleton() {
   )
 }
 
+function SortableProductRow({ product }: { product: Product }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: product.id })
+  const imgUrl = product.images[0]?.url ?? product.colorVariants?.[0]?.images?.sort((a, b) => a.order - b.order)?.[0]?.url
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-100 rounded-lg mb-2 shadow-sm"
+    >
+      <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 touch-none shrink-0">
+        <GripVertical className="w-5 h-5" />
+      </button>
+      <div className="w-9 h-9 rounded-md overflow-hidden bg-gray-100 shrink-0">
+        {imgUrl ? <Image src={imgUrl} alt={product.name} width={36} height={36} className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+        <p className="text-xs text-gray-400 truncate">{product.itemCode ?? product.slug}</p>
+      </div>
+      <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${product.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+        {product.status}
+      </span>
+    </div>
+  )
+}
+
+function ReorderModal({ products, onClose, onSaved }: { products: Product[]; onClose: () => void; onSaved: () => void }) {
+  const [items, setItems] = useState<Product[]>([...products])
+  const [saving, setSaving] = useState(false)
+
+  const sensors = useSensors(useSensor(PointerSensor))
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (over && active.id !== over.id) {
+      setItems(prev => {
+        const oldIndex = prev.findIndex(p => p.id === active.id)
+        const newIndex = prev.findIndex(p => p.id === over.id)
+        return arrayMove(prev, oldIndex, newIndex)
+      })
+    }
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    await adminFetch('/api/products/reorder', {
+      method: 'PATCH',
+      body: JSON.stringify({ items: items.map((p, i) => ({ id: p.id, order: i })) }),
+    })
+    setSaving(false)
+    onSaved()
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg flex flex-col max-h-[80vh]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="font-semibold text-gray-900">Change Display Order</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Drag to reorder. This order applies to the storefront shop page and all collection pages.</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded hover:bg-gray-100 text-gray-400"><X className="w-4 h-4" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={items.map(p => p.id)} strategy={verticalListSortingStrategy}>
+              {items.map(p => <SortableProductRow key={p.id} product={p} />)}
+            </SortableContext>
+          </DndContext>
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50">Cancel</button>
+          <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm rounded-lg bg-black text-white hover:bg-gray-800 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save Order'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [showReorder, setShowReorder] = useState(false)
 
   const load = useCallback(async () => {
     if (!search) {
@@ -135,6 +227,26 @@ export default function ProductsPage() {
           </div>
         )}
       </div>
+
+      {!search && products.length > 1 && (
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => setShowReorder(true)}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            Change Order
+          </button>
+        </div>
+      )}
+
+      {showReorder && (
+        <ReorderModal
+          products={products}
+          onClose={() => setShowReorder(false)}
+          onSaved={() => { invalidateCache('products'); load() }}
+        />
+      )}
     </div>
   )
 }

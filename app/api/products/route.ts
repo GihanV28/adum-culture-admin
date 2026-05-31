@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
       category: { select: { id: true, name: true } },
       stockRecord: { select: { quantity: true, reservedQuantity: true } },
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }],
   })
   return NextResponse.json({ success: true, data: { products } })
 }

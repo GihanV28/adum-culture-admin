@@ -107,6 +107,7 @@ model Product {
   updatedAt        DateTime            @updatedAt
   newArrival       Boolean             @default(false)
   bestSeller       Boolean             @default(false)
+  displayOrder     Int                 @default(0)
   stock            Int                 @default(0)
   colors           Json?
   modelDetails     String?

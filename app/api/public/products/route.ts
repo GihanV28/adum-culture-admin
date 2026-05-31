@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       collections: { include: { collection: true } },
       sizeGuide: true,
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }],
     take: limit,
   })
 
@@ -101,6 +101,9 @@ export async function GET(req: NextRequest) {
       careInstructions: (p.careInstructions as string[]) ?? [],
       styleGuide: (p.styleGuide as string[]) ?? [],
       shippingInfo: (p.shippingInfo as string[]) ?? [],
+      returnInfo: (p.returnInfo as string[]) ?? [],
+      displayOrder: p.displayOrder,
+      createdAt: p.createdAt.toISOString(),
     }
   })
 
