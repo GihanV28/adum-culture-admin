@@ -88,6 +88,7 @@ export async function GET(_req: NextRequest, { params }: { params: { slug: strin
         careInstructions: (p.careInstructions as string[]) ?? [],
         styleGuide: (p.styleGuide as string[]) ?? [],
         shippingInfo: (p.shippingInfo as string[]) ?? [],
+        returnInfo: (p.returnInfo as string[]) ?? [],
       },
     },
   }, { headers: CORS })
