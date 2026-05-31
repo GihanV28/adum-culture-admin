@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { adminFetch } from '@/lib/api'
+import { getCached, setCached, invalidateCache } from '@/lib/admin-cache'
 import { Plus, Trash2, Pencil, Check, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
 
@@ -197,9 +198,11 @@ export default function SizeGuidesPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
 
   const load = async () => {
+    const cached = getCached<typeof guides>('size-guides')
+    if (cached) { setGuides(cached); setLoading(false); return }
     setLoading(true)
     const d = await adminFetch('/api/size-guides').catch(() => null)
-    if (d) setGuides(d.data.guides)
+    if (d) { setGuides(d.data.guides); setCached('size-guides', d.data.guides) }
     setLoading(false)
   }
   useEffect(() => { load() }, [])
@@ -208,7 +211,7 @@ export default function SizeGuidesPage() {
     if (!newForm.name.trim()) return
     setSaving(true)
     await adminFetch('/api/size-guides', { method: 'POST', body: JSON.stringify(newForm) })
-    setCreating(false); setNewForm(emptyForm()); load()
+    setCreating(false); setNewForm(emptyForm()); invalidateCache('size-guides'); load()
     setSaving(false)
   }
 
@@ -216,7 +219,7 @@ export default function SizeGuidesPage() {
     if (!editId || !editForm.name.trim()) return
     setSaving(true)
     await adminFetch(`/api/size-guides/${editId}`, { method: 'PUT', body: JSON.stringify(editForm) })
-    setEditId(null); load()
+    setEditId(null); invalidateCache('size-guides'); load()
     setSaving(false)
   }
 
@@ -232,7 +235,7 @@ export default function SizeGuidesPage() {
 
   const del = async (id: string) => {
     if (!confirm('Delete this size guide? Products using it will lose the association.')) return
-    await adminFetch(`/api/size-guides/${id}`, { method: 'DELETE' }); load()
+    await adminFetch(`/api/size-guides/${id}`, { method: 'DELETE' }); invalidateCache('size-guides'); load()
   }
 
   return (

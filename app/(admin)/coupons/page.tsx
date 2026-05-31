@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { adminFetch } from '@/lib/api'
+import { getCached, setCached, invalidateCache } from '@/lib/admin-cache'
 import { formatDate } from '@/lib/utils'
 import { Plus, Trash2, ToggleLeft, ToggleRight } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -14,8 +15,10 @@ export default function CouponsPage() {
   const [saving, setSaving] = useState(false)
 
   const load = () => {
+    const cached = getCached<Coupon[]>('coupons')
+    if (cached) { setCoupons(cached); setLoading(false); return }
     setLoading(true)
-    adminFetch('/api/coupons').then(d => { setCoupons(d.data.coupons); setLoading(false) }).catch(() => setLoading(false))
+    adminFetch('/api/coupons').then(d => { const v = d.data.coupons; setCoupons(v); setCached('coupons', v); setLoading(false) }).catch(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
 
@@ -23,18 +26,18 @@ export default function CouponsPage() {
     setSaving(true)
     await adminFetch('/api/coupons', { method: 'POST', body: JSON.stringify({ ...form, code: form.code.toUpperCase(), maxUses: form.maxUses ? +form.maxUses : undefined, expiresAt: form.expiresAt || undefined }) })
     setForm({ code: '', discountType: 'percentage', discountValue: 10, minOrderValue: 0, maxUses: '', expiresAt: '', active: true })
-    load(); setSaving(false)
+    invalidateCache('coupons'); load(); setSaving(false)
   }
 
   const toggle = async (c: Coupon) => {
     await adminFetch(`/api/coupons/${c.id}`, { method: 'PATCH', body: JSON.stringify({ active: !c.active }) })
-    load()
+    invalidateCache('coupons'); load()
   }
 
   const del = async (id: string) => {
     if (!confirm('Delete coupon?')) return
     await adminFetch(`/api/coupons/${id}`, { method: 'DELETE' })
-    load()
+    invalidateCache('coupons'); load()
   }
 
   const inputCls = 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'

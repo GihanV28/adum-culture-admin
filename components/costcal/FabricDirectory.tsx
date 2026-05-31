@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Plus, Pencil, Trash2, X, Check, ImageIcon, Package, User, Phone, CalendarDays, Shirt } from 'lucide-react'
 import { getFabrics, addFabric, updateFabric, deleteFabric, type Fabric } from '@/lib/costcal-storage'
+import { Skeleton } from '@/components/ui/Skeleton'
 
 const UNITS = ['Yards', 'KG', 'Pieces', 'Rolls'] as const
 const MAX_IMAGES = 3
@@ -33,6 +34,7 @@ function computeTotal(costPerUnit: string, quantity: string) {
 
 export default function FabricDirectory() {
   const [fabrics, setFabrics] = useState<Fabric[]>([])
+  const [fabricsLoading, setFabricsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
@@ -42,7 +44,11 @@ export default function FabricDirectory() {
   const [isDraggingFabricImg, setIsDraggingFabricImg] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const load = async () => setFabrics(await getFabrics())
+  const load = async (force = false) => {
+    setFabricsLoading(true)
+    setFabrics(await getFabrics(force))
+    setFabricsLoading(false)
+  }
   useEffect(() => { load() }, [])
 
   const set = (patch: Partial<FormState>) => setForm(f => ({ ...f, ...patch }))
@@ -134,12 +140,12 @@ export default function FabricDirectory() {
     }
     if (editId) await updateFabric(editId, data)
     else await addFabric(data)
-    await load(); cancel(); setSaving(false)
+    await load(true); cancel(); setSaving(false)
   }
 
   const del = async (id: string) => {
     if (!confirm('Delete this fabric?')) return
-    await deleteFabric(id); load()
+    await deleteFabric(id); load(true)
   }
 
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
@@ -313,7 +319,29 @@ export default function FabricDirectory() {
       )}
 
       {/* Grid */}
-      {fabrics.length === 0 ? (
+      {fabricsLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <Skeleton className="h-32 w-full" />
+              <div className="p-4 space-y-3">
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+                <Skeleton className="h-3 w-2/3" />
+                <div className="space-y-1.5 pt-1">
+                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-3 w-2/5" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Skeleton className="h-9 flex-1 rounded-lg" />
+                  <Skeleton className="h-9 flex-1 rounded-lg" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : fabrics.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-16 text-center text-gray-400 text-sm">
           No fabrics yet. Add your first fabric to get started.
         </div>

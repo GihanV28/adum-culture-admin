@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { adminFetch } from '@/lib/api'
+import { getCached, setCached } from '@/lib/admin-cache'
 import { formatDate } from '@/lib/utils'
 import { Download } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -12,7 +13,9 @@ export default function NewsletterPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    adminFetch('/api/newsletter').then(d => { setSubscribers(d.data.subscribers); setLoading(false) }).catch(console.error)
+    const cached = getCached<Subscriber[]>('newsletter')
+    if (cached) { setSubscribers(cached); setLoading(false); return }
+    adminFetch('/api/newsletter').then(d => { const v = d.data.subscribers; setSubscribers(v); setCached('newsletter', v, 2 * 60 * 1000); setLoading(false) }).catch(console.error)
   }, [])
 
   const exportCsv = () => {

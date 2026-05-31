@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { adminFetch } from '@/lib/api'
+import { getCached, setCached, invalidateCache } from '@/lib/admin-cache'
 import { formatCurrency } from '@/lib/utils'
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -38,9 +39,15 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
+    if (!search) {
+      const cached = getCached<Product[]>('products')
+      if (cached) { setProducts(cached); setLoading(false); return }
+    }
     setLoading(true)
     const d = await adminFetch(`/api/products?search=${search}`)
-    setProducts(d.data.products)
+    const prods = d.data.products
+    setProducts(prods)
+    if (!search) setCached('products', prods)
     setLoading(false)
   }, [search])
 
@@ -49,7 +56,7 @@ export default function ProductsPage() {
   const del = async (id: string) => {
     if (!confirm('Delete this product?')) return
     await adminFetch(`/api/products/${id}`, { method: 'DELETE' })
-    load()
+    invalidateCache('products'); load()
   }
 
   const totalStock = (p: Product) => {

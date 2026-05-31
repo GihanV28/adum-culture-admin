@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { adminFetch } from '@/lib/api'
+import { getCached, setCached, invalidateCache } from '@/lib/admin-cache'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Search } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -40,17 +41,24 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1)
   const [pages, setPages] = useState(1)
 
+  const cacheKey = `orders_${search}_${status}_${page}`
+
   const load = useCallback(async () => {
+    const cached = getCached<{ orders: Order[]; pages: number }>(cacheKey)
+    if (cached) { setOrders(cached.orders); setPages(cached.pages); setLoading(false); return }
     setLoading(true)
     const d = await adminFetch(`/api/orders?search=${search}&status=${status}&page=${page}`)
-    setOrders(d.data.orders); setPages(d.data.pages); setLoading(false)
-  }, [search, status, page])
+    const val = { orders: d.data.orders, pages: d.data.pages }
+    setOrders(val.orders); setPages(val.pages)
+    setCached(cacheKey, val, 60 * 1000) // 1 min TTL — orders change frequently
+    setLoading(false)
+  }, [search, status, page, cacheKey])
 
   useEffect(() => { load() }, [load])
 
   const updateStatus = async (id: string, newStatus: string) => {
     await adminFetch(`/api/orders/${id}`, { method: 'PATCH', body: JSON.stringify({ status: newStatus }) })
-    load()
+    invalidateCache(cacheKey); load()
   }
 
   return (

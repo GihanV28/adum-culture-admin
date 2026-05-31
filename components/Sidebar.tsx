@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { LayoutDashboard, Package, FolderOpen, ShoppingCart, Users, Tag, Mail, FileText, LogOut, Calculator, Image, Layers, Ruler, Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { clearAdminCache } from '@/lib/admin-cache'
 
 const nav = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -28,6 +29,7 @@ export default function Sidebar() {
   const logout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
     localStorage.removeItem('admin_token')
+    clearAdminCache()
     router.push('/login')
   }
 

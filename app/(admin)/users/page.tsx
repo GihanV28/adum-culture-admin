@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { adminFetch } from '@/lib/api'
+import { getCached, setCached, invalidateCache } from '@/lib/admin-cache'
 import { formatDate } from '@/lib/utils'
 import { Search, CheckCircle2, XCircle, Trash2, ShieldOff, ShieldCheck } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -24,9 +25,15 @@ export default function UsersPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (!search) {
+      const cached = getCached<User[]>('users')
+      if (cached) { setUsers(cached); setLoading(false); return }
+    }
     setLoading(true)
     const d = await adminFetch(`/api/users?search=${search}`)
-    setUsers(d.data.users)
+    const us = d.data.users
+    setUsers(us)
+    if (!search) setCached('users', us)
     setLoading(false)
   }, [search])
 
@@ -39,7 +46,7 @@ export default function UsersPage() {
         method: 'PATCH',
         body: JSON.stringify({ suspended: !user.suspended }),
       })
-      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, suspended: !u.suspended } : u))
+      invalidateCache('users'); setUsers(prev => prev.map(u => u.id === user.id ? { ...u, suspended: !u.suspended } : u))
     } finally {
       setActionLoading(null)
     }
@@ -49,7 +56,7 @@ export default function UsersPage() {
     setActionLoading(user.id + '-delete')
     try {
       await adminFetch(`/api/users/${user.id}`, { method: 'DELETE' })
-      setUsers(prev => prev.filter(u => u.id !== user.id))
+      invalidateCache('users'); setUsers(prev => prev.filter(u => u.id !== user.id))
     } finally {
       setActionLoading(null)
       setConfirmDelete(null)

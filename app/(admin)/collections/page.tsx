@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import Image from 'next/image'
 import { adminFetch } from '@/lib/api'
+import { getCached, setCached, invalidateCache } from '@/lib/admin-cache'
 import { slugify } from '@/lib/utils'
 import { Plus, Pencil, Trash2, X, Check, Upload, GripVertical, ArrowUpDown } from 'lucide-react'
 import {
@@ -139,8 +140,10 @@ export default function CollectionsPage() {
   const editFileRef = useRef<HTMLInputElement>(null)
 
   const load = () => {
+    const cached = getCached<Collection[]>('collections')
+    if (cached) { setCollections(cached); setLoading(false); return }
     setLoading(true)
-    adminFetch('/api/collections').then(d => { setCollections(d.data.collections); setLoading(false) }).catch(() => setLoading(false))
+    adminFetch('/api/collections').then(d => { const v = d.data.collections; setCollections(v); setCached('collections', v); setLoading(false) }).catch(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
 
@@ -162,18 +165,18 @@ export default function CollectionsPage() {
     setSaving(true)
     await adminFetch('/api/collections', { method: 'POST', body: JSON.stringify(form) })
     setForm({ name: '', slug: '', description: '', imageUrl: '', published: true })
-    load(); setSaving(false)
+    invalidateCache('collections'); load(); setSaving(false)
   }
 
   const save = async (id: string) => {
     await adminFetch(`/api/collections/${id}`, { method: 'PUT', body: JSON.stringify(editForm) })
-    setEditId(null); load()
+    setEditId(null); invalidateCache('collections'); load()
   }
 
   const del = async (id: string) => {
     if (!confirm('Delete this collection?')) return
     await adminFetch(`/api/collections/${id}`, { method: 'DELETE' })
-    load()
+    invalidateCache('collections'); load()
   }
 
   const inputCls = 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'

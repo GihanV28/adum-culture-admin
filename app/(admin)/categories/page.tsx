@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { adminFetch } from '@/lib/api'
+import { getCached, setCached, invalidateCache } from '@/lib/admin-cache'
 import { Plus, Edit, Trash2, Tag } from 'lucide-react'
 import { Skeleton } from '@/components/ui/Skeleton'
 
@@ -16,8 +17,10 @@ export default function CategoriesPage() {
   const [error, setError] = useState('')
 
   const load = () => {
+    const cached = getCached<Category[]>('categories')
+    if (cached) { setCategories(cached); setLoading(false); return }
     setLoading(true)
-    adminFetch('/api/categories').then(d => { setCategories(d.data.categories); setLoading(false) }).catch(() => setLoading(false))
+    adminFetch('/api/categories').then(d => { const v = d.data.categories; setCategories(v); setCached('categories', v); setLoading(false) }).catch(() => setLoading(false))
   }
   useEffect(load, [])
 
@@ -35,7 +38,7 @@ export default function CategoriesPage() {
     try {
       if (editing) await adminFetch(`/api/categories/${editing.id}`, { method: 'PUT', body: JSON.stringify(form) })
       else await adminFetch('/api/categories', { method: 'POST', body: JSON.stringify(form) })
-      setShowForm(false); load()
+      setShowForm(false); invalidateCache('categories'); load()
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to save') }
     setSaving(false)
   }
@@ -43,7 +46,7 @@ export default function CategoriesPage() {
   const remove = async (id: string) => {
     if (!confirm('Delete this category? Products in this category will be uncategorized.')) return
     await adminFetch(`/api/categories/${id}`, { method: 'DELETE' })
-    load()
+    invalidateCache('categories'); load()
   }
 
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'

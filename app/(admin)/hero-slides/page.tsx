@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { adminFetch } from '@/lib/api'
+import { getCached, setCached, invalidateCache } from '@/lib/admin-cache'
 import { Plus, Trash2, ToggleLeft, ToggleRight, Upload, X, GripVertical, ArrowUpDown } from 'lucide-react'
 import {
   DndContext,
@@ -129,8 +130,10 @@ export default function HeroSlidesPage() {
   const mobileRef = useRef<HTMLInputElement>(null)
 
   const load = () => {
+    const cached = getCached<Slide[]>('hero-slides')
+    if (cached) { setSlides(cached); setLoading(false); return }
     setLoading(true)
-    adminFetch('/api/hero-slides').then(d => { setSlides(d.data.slides); setLoading(false) }).catch(() => setLoading(false))
+    adminFetch('/api/hero-slides').then(d => { const v = d.data.slides; setSlides(v); setCached('hero-slides', v); setLoading(false) }).catch(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
 
@@ -149,18 +152,18 @@ export default function HeroSlidesPage() {
     setSaving(true)
     await adminFetch('/api/hero-slides', { method: 'POST', body: JSON.stringify({ ...form, order: slides.length }) })
     setForm({ alt: '', desktopImageUrl: '', mobileImageUrl: '', active: true })
-    load(); setSaving(false)
+    invalidateCache('hero-slides'); load(); setSaving(false)
   }
 
   const toggle = async (s: Slide) => {
     await adminFetch(`/api/hero-slides/${s.id}`, { method: 'PATCH', body: JSON.stringify({ active: !s.active }) })
-    load()
+    invalidateCache('hero-slides'); load()
   }
 
   const del = async (id: string) => {
     if (!confirm('Delete this slide?')) return
     await adminFetch(`/api/hero-slides/${id}`, { method: 'DELETE' })
-    load()
+    invalidateCache('hero-slides'); load()
   }
 
   const inputCls = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black'
