@@ -38,6 +38,7 @@ export default function FabricDirectory() {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [saving, setSaving] = useState(false)
   const [pendingSlot, setPendingSlot] = useState(0)
+  const [isDraggingFabricImg, setIsDraggingFabricImg] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = async () => setFabrics(await getFabrics())
@@ -66,6 +67,20 @@ export default function FabricDirectory() {
 
   const removeImage = (i: number) => {
     setForm(f => ({ ...f, images: f.images.filter((_, idx) => idx !== i) }))
+  }
+
+  const addImageFromFile = (file: File) => {
+    if (!file.type.startsWith('image/')) return
+    setForm(f => {
+      if (f.images.length >= MAX_IMAGES) return f
+      const reader = new FileReader()
+      reader.onload = ev => setForm(prev => {
+        if (prev.images.length >= MAX_IMAGES) return prev
+        return { ...prev, images: [...prev.images, ev.target?.result as string] }
+      })
+      reader.readAsDataURL(file)
+      return f
+    })
   }
 
   const openAdd = () => { setForm(emptyForm); setEditId(null); setShowForm(true) }
@@ -238,15 +253,17 @@ export default function FabricDirectory() {
 
                   if (isNextSlot) {
                     return (
-                      <button
+                      <div
                         key={i}
-                        type="button"
+                        onDragOver={e => { e.preventDefault(); setIsDraggingFabricImg(true) }}
+                        onDragLeave={e => { e.preventDefault(); setIsDraggingFabricImg(false) }}
+                        onDrop={e => { e.preventDefault(); setIsDraggingFabricImg(false); const f = e.dataTransfer.files[0]; if (f) addImageFromFile(f) }}
                         onClick={() => openImagePicker(i)}
-                        className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-gray-400 hover:bg-gray-50 shrink-0 transition-colors"
+                        className={`w-20 h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 cursor-pointer select-none shrink-0 transition-colors ${isDraggingFabricImg ? 'border-black bg-black/5 text-black' : 'border-gray-300 text-gray-400 hover:border-gray-500 hover:bg-gray-50'}`}
                       >
                         <Plus className="w-5 h-5" />
                         <span className="text-[10px]">Add</span>
-                      </button>
+                      </div>
                     )
                   }
 

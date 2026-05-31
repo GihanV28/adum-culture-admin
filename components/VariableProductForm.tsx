@@ -4,7 +4,34 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { adminFetch } from '@/lib/api'
 import { slugify } from '@/lib/utils'
-import { Plus, Trash2, Upload, X, Download } from 'lucide-react'
+import { Plus, Trash2, Upload, X, Download, GripVertical } from 'lucide-react'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { arrayMove, SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
+function SortableVariantImage({ img, onRemove }: { img: { url: string; order: number }; onRemove: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: img.url })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 group cursor-grab active:cursor-grabbing"
+      {...attributes} {...listeners}
+    >
+      <Image src={img.url} alt="" fill className="object-cover pointer-events-none select-none" />
+      <button
+        onPointerDown={e => e.stopPropagation()}
+        onClick={onRemove}
+        className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center z-10"
+      >
+        <X className="w-2.5 h-2.5" />
+      </button>
+      <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+        <GripVertical className="w-3.5 h-3.5 text-white drop-shadow-sm" />
+      </div>
+    </div>
+  )
+}
 
 interface Collection { id: string; name: string }
 interface Category { id: string; name: string; skuPrefix?: string | null }
@@ -54,6 +81,18 @@ export default function VariableProductForm({ initial, id, collections, initialV
   const [uploadingVariants, setUploadingVariants] = useState<Set<number>>(new Set())
   const [draggingVariant, setDraggingVariant] = useState<number | null>(null)
   const fileRefs = useRef<(HTMLInputElement | null)[]>([])
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const handleVariantImageDragEnd = (vi: number) => (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setVariants(prev => prev.map((v, i) => {
+      if (i !== vi) return v
+      const oldIdx = v.images.findIndex(img => img.url === active.id)
+      const newIdx = v.images.findIndex(img => img.url === over.id)
+      return { ...v, images: arrayMove(v.images, oldIdx, newIdx).map((img, idx) => ({ ...img, order: idx })) }
+    }))
+  }
 
   useEffect(() => {
     adminFetch('/api/categories').then(d => setCategories(d.data.categories)).catch(() => {})
@@ -294,17 +333,18 @@ export default function VariableProductForm({ initial, id, collections, initialV
                     <div>
                       <p className="text-xs font-medium text-gray-600 mb-2">Images for this color</p>
                       {variant.images.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {variant.images.map((img, ii) => (
-                            <div key={ii} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 group">
-                              <Image src={img.url} alt="" fill className="object-cover" />
-                              <button onClick={() => removeImageFromVariant(vi, ii)}
-                                className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center">
-                                <X className="w-2.5 h-2.5" />
-                              </button>
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleVariantImageDragEnd(vi)}>
+                          <SortableContext items={variant.images.map(img => img.url)} strategy={rectSortingStrategy}>
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {variant.images.map((img, ii) => (
+                                <SortableVariantImage key={img.url} img={img} onRemove={() => removeImageFromVariant(vi, ii)} />
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          </SortableContext>
+                        </DndContext>
+                      )}
+                      {variant.images.length > 1 && (
+                        <p className="text-xs text-gray-400 mb-2">Drag to reorder · first image is cover</p>
                       )}
                       <div
                         onDragOver={e => { e.preventDefault(); setDraggingVariant(vi) }}

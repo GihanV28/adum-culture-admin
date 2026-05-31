@@ -4,7 +4,34 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { adminFetch } from '@/lib/api'
 import { slugify } from '@/lib/utils'
-import { Plus, Trash2, Upload, X, Download } from 'lucide-react'
+import { Plus, Trash2, Upload, X, Download, GripVertical } from 'lucide-react'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { arrayMove, SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
+function SortableImage({ img, onRemove }: { img: { url: string; order: number }; onRemove: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: img.url })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }}
+      className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 group cursor-grab active:cursor-grabbing"
+      {...attributes} {...listeners}
+    >
+      <Image src={img.url} alt="" fill className="object-cover pointer-events-none select-none" />
+      <button
+        onPointerDown={e => e.stopPropagation()}
+        onClick={onRemove}
+        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center z-10"
+      >
+        <X className="w-3 h-3" />
+      </button>
+      <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+        <GripVertical className="w-4 h-4 text-white drop-shadow-sm" />
+      </div>
+    </div>
+  )
+}
 
 interface Collection { id: string; name: string }
 interface Category { id: string; name: string; skuPrefix?: string | null }
@@ -46,6 +73,17 @@ export default function SingleProductForm({ initial, id, collections }: {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+  const handleImageDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setForm(f => {
+      const oldIdx = f.images.findIndex(img => img.url === active.id)
+      const newIdx = f.images.findIndex(img => img.url === over.id)
+      return { ...f, images: arrayMove(f.images, oldIdx, newIdx).map((img, i) => ({ ...img, order: i })) }
+    })
+  }
   const [error, setError] = useState('')
   const [newSize, setNewSize] = useState({ size: '', stock: 0 })
   const [skuLoading, setSkuLoading] = useState(false)
@@ -235,16 +273,18 @@ export default function SingleProductForm({ initial, id, collections }: {
             <h2 className="font-semibold text-gray-900">Images</h2>
 
             {form.images.length > 0 && (
-              <div className="flex flex-wrap gap-3">
-                {form.images.map((img, i) => (
-                  <div key={i} className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 group">
-                    <Image src={img.url} alt="" fill className="object-cover" />
-                    <button onClick={() => removeImage(i)} className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full hidden group-hover:flex items-center justify-center">
-                      <X className="w-3 h-3" />
-                    </button>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleImageDragEnd}>
+                <SortableContext items={form.images.map(img => img.url)} strategy={rectSortingStrategy}>
+                  <div className="flex flex-wrap gap-3">
+                    {form.images.map((img, i) => (
+                      <SortableImage key={img.url} img={img} onRemove={() => removeImage(i)} />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
+            )}
+            {form.images.length > 1 && (
+              <p className="text-xs text-gray-400 -mt-1">Drag images to reorder · first image is the cover</p>
             )}
 
             <div
