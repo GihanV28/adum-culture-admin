@@ -47,7 +47,9 @@ export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: 
   const [productSearch, setProductSearch] = useState('')
   const [productDropdown, setProductDropdown] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [selectedProducts, setSelectedProducts] = useState<Product[]>([])
   const [existingCosting, setExistingCosting] = useState(false)
+  const [conflictingProducts, setConflictingProducts] = useState<Product[]>([])
 
   // Fabrics
   const [fabrics, setFabrics] = useState<Fabric[]>([])
@@ -164,7 +166,7 @@ export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: 
     return () => document.removeEventListener('mousedown', handler)
   }, [productDropdown])
 
-  // Check if selected product already has a costing
+  // Edit mode: check if the single selected product already has a costing
   useEffect(() => {
     if (!selectedProduct) { setExistingCosting(false); return }
     fetch('/api/costcal/costings')
@@ -176,9 +178,22 @@ export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: 
       .catch(() => {})
   }, [selectedProduct])
 
+  // New multi-select mode: check which selected products already have costings
+  useEffect(() => {
+    if (editingCosting || selectedProducts.length === 0) { setConflictingProducts([]); return }
+    fetch('/api/costcal/costings')
+      .then(r => r.json())
+      .then(d => {
+        const existingIds = new Set((d.data?.costings ?? []).map((c: { productId: string }) => c.productId))
+        setConflictingProducts(selectedProducts.filter(p => existingIds.has(p.id)))
+      })
+      .catch(() => {})
+  }, [selectedProducts, editingCosting])
+
   const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    (p.itemCode ?? '').toLowerCase().includes(productSearch.toLowerCase())
+    !selectedProducts.some(s => s.id === p.id) && // exclude already-selected
+    (p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+    (p.itemCode ?? '').toLowerCase().includes(productSearch.toLowerCase()))
   )
 
   // ── Fabric entry management ──────────────────────────────────────────────
@@ -267,28 +282,29 @@ export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: 
   }
 
   const doSave = async () => {
-    if (!selectedProduct || deductionsError) return
+    const productsToSave = editingCosting ? (selectedProduct ? [selectedProduct] : []) : selectedProducts
+    if (productsToSave.length === 0 || deductionsError) return
     setSaving(true)
     try {
-      await adminFetch('/api/costcal/costings', {
-        method: 'POST',
-        body: JSON.stringify({
-          productId: selectedProduct.id,
-          fabricEntries: fabricEntries.map(({ id: _, ...r }) => r),
-          pieces: Number(pieces) || 1,
-          otherCosts: otherCosts.map(({ id: _, ...c }) => c),
-          profitMode, profitUnit, profitValue: Number(profitValue),
-          bnplTotal: Number(bnplTotal), bnplMerchant: Number(bnplMerchant),
-          gatewayPerc: Number(gatewayPerc), vatPerc: Number(vatPerc),
-          deliveryTotal: Number(deliveryTotal), deliveryMerchant: Number(deliveryMerchant),
-          totalProductionCost,
-          netProfit: actualNetProfit,
-          recommendedPrice: finalSellingPrice,
-          sellingPrice: finalSellingPrice,
-          originalPrice: 0,
-          status: 'draft',
-        }),
+      const payload = (productId: string) => ({
+        productId,
+        fabricEntries: fabricEntries.map(({ id: _, ...r }) => r),
+        pieces: Number(pieces) || 1,
+        otherCosts: otherCosts.map(({ id: _, ...c }) => c),
+        profitMode, profitUnit, profitValue: Number(profitValue),
+        bnplTotal: Number(bnplTotal), bnplMerchant: Number(bnplMerchant),
+        gatewayPerc: Number(gatewayPerc), vatPerc: Number(vatPerc),
+        deliveryTotal: Number(deliveryTotal), deliveryMerchant: Number(deliveryMerchant),
+        totalProductionCost,
+        netProfit: actualNetProfit,
+        recommendedPrice: finalSellingPrice,
+        sellingPrice: finalSellingPrice,
+        originalPrice: 0,
+        status: 'draft',
       })
+      await Promise.all(
+        productsToSave.map(p => adminFetch('/api/costcal/costings', { method: 'POST', body: JSON.stringify(payload(p.id)) }))
+      )
       invalidateCache('products')
       if (onSaved) onSaved()
     } finally {
@@ -298,28 +314,53 @@ export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: 
   }
 
   const handleAddToInventory = () => {
-    if (!selectedProduct) return
-    if (existingCosting) { setConfirmReplace(true); return }
+    if (editingCosting) {
+      if (!selectedProduct) return
+      if (existingCosting) { setConfirmReplace(true); return }
+      doSave()
+      return
+    }
+    if (selectedProducts.length === 0) return
+    if (conflictingProducts.length > 0) { setConfirmReplace(true); return }
     doSave()
   }
 
   const fmt = (n: number) => n.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  const canSave = !!selectedProduct && !deductionsError && fabricEntries.length > 0 && !!pieces && Number(pieces) > 0
+  const canSave = (editingCosting ? !!selectedProduct : selectedProducts.length > 0) && !deductionsError && fabricEntries.length > 0 && !!pieces && Number(pieces) > 0
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
       {/* Confirm replace dialog */}
       {confirmReplace && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-xl border border-gray-200 p-6 w-full max-w-sm shadow-xl">
-            <h3 className="font-semibold text-gray-900 mb-2">Replace existing costing?</h3>
-            <p className="text-sm text-gray-500 mb-5">
-              <strong>{selectedProduct?.name}</strong> already has a costing in inventory. This will overwrite it with the current calculation.
-            </p>
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 w-full max-w-md shadow-xl">
+            <h3 className="font-semibold text-gray-900 mb-2">Replace Existing Costing{conflictingProducts.length > 1 ? 's' : ''}?</h3>
+            {editingCosting ? (
+              <p className="text-sm text-gray-500 mb-5">
+                <strong>{selectedProduct?.name}</strong> already has a costing in inventory. This will overwrite it with the current calculation.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-gray-500 mb-3">
+                  The following {conflictingProducts.length === 1 ? 'product' : `${conflictingProducts.length} products`} already {conflictingProducts.length === 1 ? 'has' : 'have'} a costing in inventory:
+                </p>
+                <ul className="mb-3 space-y-1.5">
+                  {conflictingProducts.map(p => (
+                    <li key={p.id} className="flex items-center gap-2 text-sm font-medium text-amber-800 bg-amber-50 px-3 py-2 rounded-lg">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                      {p.name}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-sm text-gray-500 mb-5">
+                  Their existing costings will be overwritten. The other {selectedProducts.length - conflictingProducts.length > 0 ? `${selectedProducts.length - conflictingProducts.length} product${selectedProducts.length - conflictingProducts.length > 1 ? 's' : ''} will be added fresh.` : 'selected products are new.'}
+                </p>
+              </>
+            )}
             <div className="flex gap-2 justify-end">
               <button onClick={() => setConfirmReplace(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
               <button onClick={doSave} disabled={saving} className="px-4 py-2 text-sm bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50">
-                {saving ? 'Saving…' : 'Yes, replace'}
+                {saving ? 'Saving…' : editingCosting ? 'Yes, replace' : `Save All ${selectedProducts.length > 1 ? `(${selectedProducts.length})` : ''}`}
               </button>
             </div>
           </div>
@@ -384,20 +425,35 @@ export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: 
                 <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">Editing</span>
               </div>
             ) : (
-              <button type="button" onClick={() => setProductDropdown(d => !d)}
-                className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white">
-                {selectedProduct ? (
-                  <span className="flex items-center gap-2">
-                    <Package className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    <span className="font-medium text-gray-900">{selectedProduct.name}</span>
-                    {selectedProduct.itemCode && <span className="text-gray-400 text-xs">{selectedProduct.itemCode}</span>}
-                    {existingCosting && <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">Has costing</span>}
-                  </span>
-                ) : (
-                  <span className="text-gray-400">Choose a product…</span>
+              <>
+                {/* Selected product chips */}
+                {selectedProducts.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {selectedProducts.map(p => {
+                      const hasConflict = conflictingProducts.some(c => c.id === p.id)
+                      return (
+                        <span key={p.id} className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-full font-medium border ${hasConflict ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                          <Package className="w-3 h-3 opacity-60 shrink-0" />
+                          <span>{p.name}</span>
+                          {p.itemCode && <span className="opacity-50">{p.itemCode}</span>}
+                          {hasConflict && <span className="opacity-70">· has costing</span>}
+                          <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => setSelectedProducts(prev => prev.filter(x => x.id !== p.id))} className="hover:text-red-500 ml-0.5">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      )
+                    })}
+                  </div>
                 )}
-                <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
-              </button>
+                {/* Dropdown trigger */}
+                <button type="button" onClick={() => setProductDropdown(d => !d)}
+                  className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white">
+                  <span className="text-gray-400">
+                    {selectedProducts.length === 0 ? 'Choose products…' : 'Add another product…'}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+                </button>
+              </>
             )}
             {productDropdown && (
               <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
@@ -411,7 +467,7 @@ export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: 
                     <p className="px-3 py-3 text-sm text-gray-400">Loading products…</p>
                   )}
                   {!productsLoading && filteredProducts.map(p => (
-                    <button key={p.id} onClick={() => { setSelectedProduct(p); setProductDropdown(false); setProductSearch('') }}
+                    <button key={p.id} onClick={() => { setSelectedProducts(prev => [...prev, p]); setProductDropdown(false); setProductSearch('') }}
                       className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between gap-2">
                       <span>
                         <span className="font-medium text-gray-900 block">{p.name}</span>
@@ -708,22 +764,31 @@ export default function CostCalculator({ onSaved, editingCosting }: { onSaved?: 
 
         {/* Add to Inventory */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
-          {!selectedProduct && (
-            <p className="text-sm text-gray-400 text-center py-2">Select a product above to add it to inventory</p>
+          {!editingCosting && selectedProducts.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-2">Select one or more products above to add them to inventory</p>
           )}
-          {selectedProduct && (
+          {(editingCosting || selectedProducts.length > 0) && (
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-900">{selectedProduct.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Recommended price: <strong>LKR {fmt(finalSellingPrice)}</strong>
-                  {existingCosting && <span className="ml-2 text-amber-600">· Will replace existing costing</span>}
-                </p>
+                {editingCosting ? (
+                  <>
+                    <p className="text-sm font-medium text-gray-900">{selectedProduct?.name ?? editingCosting.product?.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Recommended price: <strong>LKR {fmt(finalSellingPrice)}</strong>{existingCosting && <span className="ml-2 text-amber-600">· Will replace existing costing</span>}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-gray-900">{selectedProducts.length} product{selectedProducts.length !== 1 ? 's' : ''} selected</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Recommended price: <strong>LKR {fmt(finalSellingPrice)}</strong>
+                      {conflictingProducts.length > 0 && <span className="ml-2 text-amber-600">· {conflictingProducts.length} will replace existing costing{conflictingProducts.length !== 1 ? 's' : ''}</span>}
+                    </p>
+                  </>
+                )}
               </div>
               <button onClick={handleAddToInventory} disabled={!canSave || saving}
                 className="flex items-center gap-2 px-6 py-2.5 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-40 shrink-0 transition-colors">
                 <Save className="w-4 h-4" />
-                {saving ? 'Saving…' : editingCosting ? 'Update Costing' : existingCosting ? 'Update Inventory' : 'Add to Inventory'}
+                {saving ? 'Saving…' : editingCosting ? 'Update Costing' : selectedProducts.length > 1 ? `Add ${selectedProducts.length} to Inventory` : 'Add to Inventory'}
               </button>
             </div>
           )}
