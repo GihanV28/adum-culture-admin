@@ -51,14 +51,14 @@ interface EditingRow {
 const STATUSES = [
   { value: 'draft', label: 'Draft' },
   { value: 'published', label: 'Published' },
-  { value: 'active', label: 'Active (ORM)' },
+  { value: 'active', label: 'Published + ORM' },
   { value: 'inactive', label: 'Inactive' },
 ]
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-600',
   published: 'bg-green-100 text-green-700',
-  active: 'bg-blue-100 text-blue-700',
+  active: 'bg-emerald-100 text-emerald-700',
   inactive: 'bg-red-100 text-red-600',
 }
 

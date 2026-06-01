@@ -59,8 +59,8 @@ function SortableProductRow({ product }: { product: Product }) {
         <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
         <p className="text-xs text-gray-400 truncate">{product.itemCode ?? product.slug}</p>
       </div>
-      <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${product.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-        {product.status}
+      <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${product.status === 'published' ? 'bg-green-100 text-green-700' : product.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+        {product.status === 'active' ? 'Published + ORM' : product.status}
       </span>
     </div>
   )
@@ -212,7 +212,9 @@ export default function ProductsPage() {
                     <td className="px-4 sm:px-6 py-3 whitespace-nowrap">{formatCurrency(p.price)}</td>
                     <td className="px-4 sm:px-6 py-3 whitespace-nowrap">{totalStock(p)} units</td>
                     <td className="px-4 sm:px-6 py-3">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${p.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{p.status}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${p.status === 'published' ? 'bg-green-100 text-green-700' : p.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {p.status === 'active' ? 'Published + ORM' : p.status}
+                      </span>
                     </td>
                     <td className="px-4 sm:px-6 py-3">
                       <div className="flex items-center gap-1 sm:gap-2 justify-end">

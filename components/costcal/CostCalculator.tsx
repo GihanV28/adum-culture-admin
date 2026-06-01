@@ -18,7 +18,7 @@ const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
 function uid() { return Math.random().toString(36).slice(2) }
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft', published: 'Published', active: 'Active (ORM)', inactive: 'Inactive',
+  draft: 'Draft', published: 'Published', active: 'Published + ORM', inactive: 'Inactive',
 }
 
 interface EditingCosting {
