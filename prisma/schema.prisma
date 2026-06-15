@@ -686,6 +686,7 @@ model RestockRequest {
   colorName     String?
   customerName  String
   customerEmail String
+  customerPhone String?
   status        String   @default("pending")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

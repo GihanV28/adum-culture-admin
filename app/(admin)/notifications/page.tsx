@@ -28,6 +28,7 @@ interface RestockRequest {
   colorName: string | null
   customerName: string
   customerEmail: string
+  customerPhone: string | null
   status: string
   createdAt: string
 }
@@ -168,6 +169,7 @@ export default function NotificationsPage() {
                       <td className="px-4 sm:px-6 py-3">
                         <div className="font-medium text-gray-900">{r.customerName}</div>
                         <div className="text-xs text-gray-500">{r.customerEmail}</div>
+                        {r.customerPhone && <div className="text-xs text-gray-500">{r.customerPhone}</div>}
                       </td>
                       <td className="px-4 sm:px-6 py-3">
                         <Link href={`/products/${r.productId}`} className="hover:underline">{r.productName}</Link>

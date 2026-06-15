@@ -18,6 +18,7 @@ const schema = z.object({
   colorName: z.string().optional().nullable(),
   name: z.string().min(1),
   email: z.string().email(),
+  phone: z.string().optional().nullable(),
 })
 
 export async function POST(req: NextRequest, { params }: { params: { slug: string } }) {
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
       colorName: body.colorName || null,
       customerName: body.name,
       customerEmail: body.email,
+      customerPhone: body.phone || null,
     },
   })
 
