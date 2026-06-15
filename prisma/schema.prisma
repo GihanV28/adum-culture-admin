@@ -675,3 +675,18 @@ model CostCalProductionCostType {
   defaultPrice Float    @default(0)
   createdAt    DateTime @default(now())
 }
+
+model RestockRequest {
+  id            String   @id @default(cuid())
+  productId     String
+  productName   String
+  productSlug   String
+  size          String
+  colorHex      String?
+  colorName     String?
+  customerName  String
+  customerEmail String
+  status        String   @default("pending")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

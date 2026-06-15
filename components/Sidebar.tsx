@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Package, FolderOpen, ShoppingCart, Users, Tag, Mail, FileText, LogOut, Calculator, Image, Layers, Ruler, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, FolderOpen, ShoppingCart, Users, Tag, Mail, FileText, LogOut, Calculator, Image, Layers, Ruler, Menu, X, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { clearAdminCache } from '@/lib/admin-cache'
 
@@ -15,6 +15,7 @@ const nav = [
   { href: '/hero-slides', label: 'Hero Slides', icon: Image },
   { href: '/orders', label: 'Orders', icon: ShoppingCart },
   { href: '/users', label: 'Customers', icon: Users },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/coupons', label: 'Coupons', icon: Tag },
   { href: '/newsletter', label: 'Newsletter', icon: Mail },
   { href: '/content', label: 'Page Content', icon: FileText },
