@@ -11,25 +11,30 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } }
     )
 
-    const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`
-    const buffer = Buffer.from(await file.arrayBuffer())
+    // Sanitize: keep only alphanumeric, dot, dash, underscore
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-')
+    const fileName = `${Date.now()}-${safeName}`
+    const contentType = file.type || 'application/octet-stream'
+
+    const arrayBuffer = await file.arrayBuffer()
 
     const { error } = await supabase.storage
       .from('products')
-      .upload(fileName, buffer, { contentType: file.type, upsert: true })
+      .upload(fileName, arrayBuffer, { contentType, upsert: true })
 
     if (error) {
-      console.error('[Upload]', error)
-      return NextResponse.json({ success: false, message: error.message }, { status: 500 })
+      console.error('[Upload] Supabase error:', JSON.stringify(error))
+      return NextResponse.json({ success: false, message: error.message, debug: error }, { status: 500 })
     }
 
     const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName)
     return NextResponse.json({ success: true, data: { url: publicUrl } })
   } catch (err) {
-    console.error('[Upload]', err)
-    return NextResponse.json({ success: false, message: 'Upload error.' }, { status: 500 })
+    console.error('[Upload] Exception:', err)
+    return NextResponse.json({ success: false, message: String(err) }, { status: 500 })
   }
 }
