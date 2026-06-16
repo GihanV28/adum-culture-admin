@@ -13,14 +13,17 @@ export async function POST(req: NextRequest) {
     const bucket = 'products'
     const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`
 
+    const buffer = Buffer.from(await file.arrayBuffer())
     const uploadRes = await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${fileName}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
         'Content-Type': file.type,
+        'Content-Length': String(buffer.byteLength),
         'x-upsert': 'true',
       },
-      body: await file.arrayBuffer(),
+      body: buffer,
     })
 
     if (!uploadRes.ok) {
