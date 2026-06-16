@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { getAdminFromRequest } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
@@ -8,31 +9,24 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File
     if (!file) return NextResponse.json({ success: false, message: 'No file provided.' }, { status: 400 })
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-    const bucket = 'products'
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
     const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '-')}`
-
     const buffer = Buffer.from(await file.arrayBuffer())
-    const uploadRes = await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${fileName}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${serviceKey}`,
-        apikey: serviceKey,
-        'Content-Type': file.type,
-        'Content-Length': String(buffer.byteLength),
-        'x-upsert': 'true',
-      },
-      body: buffer,
-    })
 
-    if (!uploadRes.ok) {
-      const err = await uploadRes.text()
-      console.error('[Upload]', uploadRes.status, err)
-      return NextResponse.json({ success: false, message: 'Upload failed.', debug: { status: uploadRes.status, error: err } }, { status: 500 })
+    const { error } = await supabase.storage
+      .from('products')
+      .upload(fileName, buffer, { contentType: file.type, upsert: true })
+
+    if (error) {
+      console.error('[Upload]', error)
+      return NextResponse.json({ success: false, message: error.message }, { status: 500 })
     }
 
-    const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${fileName}`
+    const { data: { publicUrl } } = supabase.storage.from('products').getPublicUrl(fileName)
     return NextResponse.json({ success: true, data: { url: publicUrl } })
   } catch (err) {
     console.error('[Upload]', err)
