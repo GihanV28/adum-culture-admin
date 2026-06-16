@@ -25,8 +25,8 @@ export async function POST(req: NextRequest) {
 
     if (!uploadRes.ok) {
       const err = await uploadRes.text()
-      console.error('[Upload]', err)
-      return NextResponse.json({ success: false, message: 'Upload failed.' }, { status: 500 })
+      console.error('[Upload]', uploadRes.status, err)
+      return NextResponse.json({ success: false, message: 'Upload failed.', debug: { status: uploadRes.status, error: err } }, { status: 500 })
     }
 
     const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${fileName}`
